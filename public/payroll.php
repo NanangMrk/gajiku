@@ -415,13 +415,15 @@ if ($selectedPeriodId > 0) {
             try {
                 $db->beginTransaction();
                 
-                // Get all active employees
+                // Get all active employees (excluding Super Admin)
                 $employees = $db->query("
                     SELECT e.*, d.name as division_name, t.name as team_name
                     FROM employees e
                     LEFT JOIN divisions d ON e.division_id = d.id
                     LEFT JOIN teams t ON e.team_id = t.id
-                    WHERE e.status = 'active'
+                    LEFT JOIN users u ON e.user_id = u.id
+                    LEFT JOIN roles r ON u.role_id = r.id
+                    WHERE e.status = 'active' AND (r.slug IS NULL OR r.slug != 'super_admin')
                 ")->fetchAll();
                 
                 $yearMonth = date('Y/m', strtotime($selectedPeriod['end_date']));

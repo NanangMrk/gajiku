@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? 'emp123';
 
-        if (!empty($nik) && !empty($fullName) && !empty($email) && $basicSalary > 0) {
+        if (!empty($nik) && !empty($fullName) && !empty($email)) {
             try {
                 $db->beginTransaction();
 
@@ -44,8 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtEmp->execute([$newUserId, $nik, $fullName, $email, $phone, $divisionId ?: null, $teamId, $position, $joinDate, $bankName, $accountNumber]);
                 $newEmpId = (int)$db->lastInsertId();
 
-                $stmtSal = $db->prepare("INSERT INTO salary_history (employee_id, basic_salary, effective_date, notes, created_by) VALUES (?, ?, ?, 'Gaji Awal', ?)");
-                $stmtSal->execute([$newEmpId, $basicSalary, $joinDate, $user['id']]);
+                if ($basicSalary > 0) {
+                    $stmtSal = $db->prepare("INSERT INTO salary_history (employee_id, basic_salary, effective_date, notes, created_by) VALUES (?, ?, ?, 'Gaji Awal', ?)");
+                    $stmtSal->execute([$newEmpId, $basicSalary, $joinDate, $user['id']]);
+                }
 
                 if ($teamId) {
                     $stmtTm = $db->prepare("INSERT OR IGNORE INTO team_members (team_id, employee_id) VALUES (?, ?)");
@@ -74,6 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $joinDate = $_POST['join_date'] ?? date('Y-m-d');
         $bankName = trim($_POST['bank_name'] ?? '');
         $accountNumber = trim($_POST['account_number'] ?? '');
+        $username = trim($_POST['username'] ?? '');
+        $newPassword = $_POST['new_password'] ?? '';
 
         if ($id > 0 && !empty($nik) && !empty($fullName) && !empty($email)) {
             try {
@@ -87,17 +91,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ");
                 $stmt->execute([$nik, $fullName, $email, $phone, $divisionId ?: null, $joinDate, $bankName, $accountNumber, $id]);
 
-                // Update associated user email
-                $stmtUser = $db->prepare("
-                    UPDATE users 
-                    SET email = ? 
-                    WHERE id = (SELECT user_id FROM employees WHERE id = ?)
-                ");
-                $stmtUser->execute([$email, $id]);
+                // Update associated user username, email & password if specified
+                $stmtEmp = $db->prepare("SELECT user_id FROM employees WHERE id = ?");
+                $stmtEmp->execute([$id]);
+                $userId = (int)$stmtEmp->fetchColumn();
+
+                if ($userId > 0) {
+                    if (!empty($username)) {
+                        $stmtUpUser = $db->prepare("UPDATE users SET username = ?, email = ? WHERE id = ?");
+                        $stmtUpUser->execute([$username, $email, $userId]);
+                    } else {
+                        $stmtUpUser = $db->prepare("UPDATE users SET email = ? WHERE id = ?");
+                        $stmtUpUser->execute([$email, $userId]);
+                    }
+
+                    if (!empty($newPassword)) {
+                        if (strlen($newPassword) < 6) {
+                            throw new Exception("Password baru minimal 6 karakter.");
+                        }
+                        $passHash = password_hash($newPassword, PASSWORD_BCRYPT);
+                        $stmtUpPass = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+                        $stmtUpPass->execute([$passHash, $userId]);
+                    }
+                }
 
                 $db->commit();
-                logAudit($user['id'], 'EDIT_EMPLOYEE', 'Updated employee NIK ' . $nik . ' - ' . $fullName);
-                setFlashMessage('success', 'Data karyawan ' . e($fullName) . ' berhasil diperbarui.');
+                logAudit($user['id'], 'EDIT_EMPLOYEE', 'Updated employee & credentials: NIK ' . $nik . ' - ' . $fullName);
+                setFlashMessage('success', 'Data & kredensial ' . e($fullName) . ' berhasil diperbarui.');
             } catch (Exception $e) {
                 $db->rollBack();
                 setFlashMessage('danger', 'Gagal memperbarui data karyawan: ' . $e->getMessage());
@@ -188,17 +208,20 @@ $detailId = (int)($_GET['detail'] ?? 0);
 
 // Build SQL Query
 $sql = "
-    SELECT e.*, d.name as division_name, t.name as team_name,
+    SELECT e.*, d.name as division_name, t.name as team_name, u.username, r.slug as role_slug, r.name as role_name,
            (SELECT basic_salary FROM salary_history WHERE employee_id = e.id ORDER BY effective_date DESC, id DESC LIMIT 1) as current_salary
     FROM employees e
     LEFT JOIN divisions d ON e.division_id = d.id
     LEFT JOIN teams t ON e.team_id = t.id
+    LEFT JOIN users u ON e.user_id = u.id
+    LEFT JOIN roles r ON u.role_id = r.id
     WHERE 1=1
 ";
 $params = [];
 
 if (!empty($search)) {
-    $sql .= " AND (e.full_name LIKE ? OR e.nik LIKE ? OR e.email LIKE ?)";
+    $sql .= " AND (e.full_name LIKE ? OR e.nik LIKE ? OR e.email LIKE ? OR u.username LIKE ?)";
+    $params[] = "%$search%";
     $params[] = "%$search%";
     $params[] = "%$search%";
     $params[] = "%$search%";
@@ -226,11 +249,12 @@ $selectedEmployee = null;
 $salaryHistories = [];
 if ($detailId > 0) {
     $stmtDetail = $db->prepare("
-        SELECT e.*, d.name as division_name, t.name as team_name, u.username
+        SELECT e.*, d.name as division_name, t.name as team_name, u.username, r.slug as role_slug, r.name as role_name
         FROM employees e
         LEFT JOIN divisions d ON e.division_id = d.id
         LEFT JOIN teams t ON e.team_id = t.id
         LEFT JOIN users u ON e.user_id = u.id
+        LEFT JOIN roles r ON u.role_id = r.id
         WHERE e.id = ?
     ");
     $stmtDetail->execute([$detailId]);
@@ -397,10 +421,16 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                               <?= e($emp['division_name'] ?? 'Belum Diatur') ?>
                             </span>
                           </td>
-                          <td class="font-weight-bold text-success" style="font-size: 0.85rem;"><?= formatRupiah($emp['current_salary']) ?></td>
+                          <td>
+                            <?php if ($emp['role_slug'] === 'super_admin'): ?>
+                              <span class="badge bg-light text-muted border font-weight-bold px-2 py-1" style="font-size: 0.75rem;">Tanpa Gaji (Super Admin)</span>
+                            <?php else: ?>
+                              <span class="font-weight-bold text-success" style="font-size: 0.85rem;"><?= formatRupiah($emp['current_salary']) ?></span>
+                            <?php endif; ?>
+                          </td>
                           <td>
                             <div class="d-flex gap-1 justify-content-end" onclick="event.stopPropagation();">
-                              <button type="button" class="btn btn-xs btn-outline-warning rounded-pill" onclick="event.stopPropagation(); openEditEmployee(<?= $emp['id'] ?>, '<?= e(addslashes($emp['nik'])) ?>', '<?= e(addslashes($emp['full_name'])) ?>', '<?= e(addslashes($emp['email'])) ?>', '<?= e(addslashes($emp['phone'])) ?>', <?= (int)$emp['division_id'] ?>, '<?= $emp['join_date'] ?>', '<?= e(addslashes($emp['bank_name'])) ?>', '<?= e(addslashes($emp['account_number'])) ?>')">
+                              <button type="button" class="btn btn-xs btn-outline-warning rounded-pill" onclick="event.stopPropagation(); openEditEmployee(<?= $emp['id'] ?>, '<?= e(addslashes($emp['nik'])) ?>', '<?= e(addslashes($emp['full_name'])) ?>', '<?= e(addslashes($emp['email'])) ?>', '<?= e(addslashes($emp['phone'])) ?>', <?= (int)$emp['division_id'] ?>, '<?= $emp['join_date'] ?>', '<?= e(addslashes($emp['bank_name'])) ?>', '<?= e(addslashes($emp['account_number'])) ?>', '<?= e(addslashes($emp['username'] ?? '')) ?>')">
                                 <i class="fa-solid fa-pen-to-square"></i>
                               </button>
                               <form action="<?= BASE_URL ?>/employees.php" method="POST" class="d-inline" onclick="event.stopPropagation();">
@@ -450,7 +480,7 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                 <div class="mb-4">
                   <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="font-weight-bold text-muted mb-0 small uppercase">INFORMASI UMUM</h6>
-                    <button type="button" class="btn btn-xs btn-outline-warning rounded-pill font-weight-bold px-2.5" onclick="openEditEmployee(<?= $selectedEmployee['id'] ?>, '<?= e(addslashes($selectedEmployee['nik'])) ?>', '<?= e(addslashes($selectedEmployee['full_name'])) ?>', '<?= e(addslashes($selectedEmployee['email'])) ?>', '<?= e(addslashes($selectedEmployee['phone'])) ?>', <?= (int)$selectedEmployee['division_id'] ?>, '<?= $selectedEmployee['join_date'] ?>', '<?= e(addslashes($selectedEmployee['bank_name'])) ?>', '<?= e(addslashes($selectedEmployee['account_number'])) ?>')">
+                    <button type="button" class="btn btn-xs btn-outline-warning rounded-pill font-weight-bold px-2.5" onclick="openEditEmployee(<?= $selectedEmployee['id'] ?>, '<?= e(addslashes($selectedEmployee['nik'])) ?>', '<?= e(addslashes($selectedEmployee['full_name'])) ?>', '<?= e(addslashes($selectedEmployee['email'])) ?>', '<?= e(addslashes($selectedEmployee['phone'])) ?>', <?= (int)$selectedEmployee['division_id'] ?>, '<?= $selectedEmployee['join_date'] ?>', '<?= e(addslashes($selectedEmployee['bank_name'])) ?>', '<?= e(addslashes($selectedEmployee['account_number'])) ?>', '<?= e(addslashes($selectedEmployee['username'] ?? '')) ?>')">
                       <i class="fa-solid fa-pen-to-square me-1"></i> Edit Data
                     </button>
                   </div>
@@ -491,12 +521,18 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                 <div>
                   <div class="d-flex justify-content-between align-items-center mb-3 border-top pt-4">
                     <h6 class="font-weight-bold text-muted mb-0 small uppercase">HISTORI GAJI POKOK</h6>
-                    <button class="btn btn-xs btn-success rounded-pill font-weight-bold px-2.5" data-bs-toggle="modal" data-bs-target="#updateSalaryModal">
-                      <i class="fa-solid fa-plus me-1"></i> Update Gaji
-                    </button>
+                    <?php if ($selectedEmployee['role_slug'] !== 'super_admin'): ?>
+                      <button class="btn btn-xs btn-success rounded-pill font-weight-bold px-2.5" data-bs-toggle="modal" data-bs-target="#updateSalaryModal">
+                        <i class="fa-solid fa-plus me-1"></i> Update Gaji
+                      </button>
+                    <?php endif; ?>
                   </div>
 
-                  <?php if (empty($salaryHistories)): ?>
+                  <?php if ($selectedEmployee['role_slug'] === 'super_admin'): ?>
+                    <div class="alert alert-light border rounded-3 p-3 text-muted small mb-0">
+                      <i class="fa-solid fa-user-shield me-1 text-primary"></i> Super Admin adalah akun administrator sistem (tidak memiliki gaji pokok dan tidak diikutsertakan dalam payroll).
+                    </div>
+                  <?php elseif (empty($salaryHistories)): ?>
                     <p class="text-muted small italic text-center py-3">Belum ada riwayat gaji pokok.</p>
                   <?php else: ?>
                     <div class="table-responsive">
@@ -663,6 +699,14 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                   <label class="form-label font-weight-bold">No. Rekening</label>
                   <input type="text" name="account_number" id="editEmpAccountNumber" class="form-control">
                 </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label font-weight-bold">Username Login</label>
+                  <input type="text" name="username" id="editEmpUsername" class="form-control" placeholder="Biarkan kosong jika tidak diubah">
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label font-weight-bold">Password Baru</label>
+                  <input type="password" name="new_password" id="editEmpNewPassword" class="form-control" placeholder="Biarkan kosong jika tidak diubah">
+                </div>
               </div>
             </div>
             <div class="modal-footer border-top">
@@ -712,7 +756,7 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
 
     <!-- Script to manage Edit Modal -->
     <script>
-      function openEditEmployee(id, nik, fullName, email, phone, divisionId, joinDate, bankName, accountNumber) {
+      function openEditEmployee(id, nik, fullName, email, phone, divisionId, joinDate, bankName, accountNumber, username) {
         document.getElementById('editEmpId').value = id;
         document.getElementById('editEmpNik').value = nik;
         document.getElementById('editEmpFullName').value = fullName;
@@ -722,6 +766,12 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
         document.getElementById('editEmpJoinDate').value = joinDate;
         document.getElementById('editEmpBankName').value = bankName;
         document.getElementById('editEmpAccountNumber').value = accountNumber;
+        if (document.getElementById('editEmpUsername')) {
+          document.getElementById('editEmpUsername').value = username || '';
+        }
+        if (document.getElementById('editEmpNewPassword')) {
+          document.getElementById('editEmpNewPassword').value = '';
+        }
         
         var modal = new bootstrap.Modal(document.getElementById('editEmployeeModal'));
         modal.show();
