@@ -171,17 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   <a href="<?= BASE_URL ?>" class="text-primary small font-weight-bold text-decoration-none"><i class="fa-solid fa-arrow-left me-1"></i> Kembali ke Beranda</a>
                 </div>
 
-                <div class="pt-4 border-top text-center text-muted small">
-                  <p class="mb-2 font-weight-bold text-dark">Kredensial Setup Pengujian:</p>
-                  <div class="d-flex flex-column gap-2 align-items-center">
-                    <span class="badge bg-light text-dark border px-3 py-2 text-wrap w-100" style="font-size: 0.8rem; font-weight: normal; border-radius: 8px;">
-                      Super Admin: <strong>admin@gajiku.com</strong> / <strong>admin123</strong>
-                    </span>
-                    <span class="badge bg-light text-dark border px-3 py-2 text-wrap w-100" style="font-size: 0.8rem; font-weight: normal; border-radius: 8px;">
-                      Karyawan: <strong>andi@gajiku.com</strong> / <strong>emp123</strong>
-                    </span>
-                  </div>
-                </div>
+
               </form>
             </div>
           </div>
