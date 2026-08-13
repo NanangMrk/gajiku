@@ -118,12 +118,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $emp = $stmtName->fetch();
 
                 if ($emp) {
-                    // Delete employee record (sqlite cascading will delete related logs/members/history)
+                    $userId = (int)($emp['user_id'] ?? 0);
+
+                    if ($userId > 0) {
+                        // Putuskan relasi foreign key user agar tidak gagal akibat constraint
+                        $db->prepare("UPDATE tasks SET created_by = NULL WHERE created_by = ?")->execute([$userId]);
+                        $db->prepare("UPDATE task_history SET user_id = NULL WHERE user_id = ?")->execute([$userId]);
+                        $db->prepare("UPDATE task_attachments SET uploaded_by = NULL WHERE uploaded_by = ?")->execute([$userId]);
+                        $db->prepare("UPDATE bonus_transactions SET created_by = NULL WHERE created_by = ?")->execute([$userId]);
+                        $db->prepare("UPDATE bonus_transactions SET approved_by = NULL WHERE approved_by = ?")->execute([$userId]);
+                        $db->prepare("UPDATE team_bonus_transactions SET created_by = NULL WHERE created_by = ?")->execute([$userId]);
+                        $db->prepare("UPDATE team_bonus_transactions SET approved_by = NULL WHERE approved_by = ?")->execute([$userId]);
+                        $db->prepare("UPDATE deduction_transactions SET created_by = NULL WHERE created_by = ?")->execute([$userId]);
+                        $db->prepare("UPDATE payroll_periods SET created_by = NULL WHERE created_by = ?")->execute([$userId]);
+                        $db->prepare("UPDATE payroll_periods SET finalized_by = NULL WHERE finalized_by = ?")->execute([$userId]);
+                        $db->prepare("UPDATE audit_logs SET user_id = NULL WHERE user_id = ?")->execute([$userId]);
+                        $db->prepare("DELETE FROM notifications WHERE user_id = ?")->execute([$userId]);
+                    }
+
+                    // Putuskan relasi employee pada tabel tasks
+                    $db->prepare("UPDATE tasks SET employee_id = NULL WHERE employee_id = ?")->execute([$id]);
+                    $db->prepare("UPDATE employees SET user_id = NULL WHERE id = ?")->execute([$id]);
+
+                    // Hapus data karyawan (cascade akan menghapus salary_history, task_assignments, team_members, dsb)
                     $db->prepare("DELETE FROM employees WHERE id = ?")->execute([$id]);
 
-                    // Delete user record if exists
-                    if ($emp['user_id'] > 0) {
-                        $db->prepare("DELETE FROM users WHERE id = ?")->execute([$emp['user_id']]);
+                    // Hapus data user login terkait jika ada
+                    if ($userId > 0) {
+                        $db->prepare("DELETE FROM users WHERE id = ?")->execute([$userId]);
                     }
 
                     $db->commit();
