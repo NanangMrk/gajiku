@@ -577,71 +577,99 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
 
     <!-- Modal Add Employee -->
     <div class="modal fade" id="addEmployeeModal" tabindex="-1">
-      <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
-          <div class="modal-header border-bottom" style="background: linear-gradient(135deg, #4B49AC08, #6c63ff08);">
-            <h5 class="modal-title font-weight-bold text-dark"><i class="fa-solid fa-user-plus me-2 text-primary"></i> Tambah Karyawan Baru</h5>
+          <div class="modal-header border-bottom py-3 px-4" style="background: linear-gradient(135deg, #4B49AC08, #6c63ff08);">
+            <h5 class="modal-title font-weight-bold text-dark fs-6"><i class="fa-solid fa-user-plus me-2 text-primary"></i> Tambah Karyawan Baru</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <form action="<?= BASE_URL ?>/employees.php" method="POST">
             <?= csrfField() ?>
             <input type="hidden" name="action" value="add_employee">
-            <div class="modal-body p-4">
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">NIK Internal</label>
-                  <input type="text" name="nik" class="form-control" placeholder="EMP-005" required>
+            <div class="modal-body p-3 px-4">
+              
+              <!-- Nav Tabs -->
+              <ul class="nav nav-pills nav-fill bg-light p-1 rounded-3 mb-3 small" role="tablist" style="font-size: 0.82rem;">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link active py-1.5 font-weight-bold rounded-2" id="add-profile-tab" data-bs-toggle="tab" data-bs-target="#add-profile-pane" type="button" role="tab">
+                    <i class="fa-solid fa-user me-1"></i> Data Pribadi
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link py-1.5 font-weight-bold rounded-2" id="add-account-tab" data-bs-toggle="tab" data-bs-target="#add-account-pane" type="button" role="tab">
+                    <i class="fa-solid fa-key me-1"></i> Gaji &amp; Akun
+                  </button>
+                </li>
+              </ul>
+
+              <div class="tab-content">
+                <!-- Tab 1: Data Pribadi -->
+                <div class="tab-pane fade show active" id="add-profile-pane" role="tabpanel">
+                  <div class="row g-2">
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">NIK Internal</label>
+                      <input type="text" name="nik" class="form-control form-control-sm" placeholder="EMP-005" required>
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Nama Lengkap</label>
+                      <input type="text" name="full_name" class="form-control form-control-sm" placeholder="Nama karyawan" required>
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Email Kontak</label>
+                      <input type="email" name="email" class="form-control form-control-sm" placeholder="email@domain.com" required>
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">No. Telepon</label>
+                      <input type="text" name="phone" class="form-control form-control-sm" placeholder="0812xxxxxxxx">
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Divisi</label>
+                      <select name="division_id" class="form-select form-control form-control-sm" required>
+                        <option value="">-- Pilih Divisi --</option>
+                        <?php foreach ($divisions as $d): ?>
+                          <option value="<?= $d['id'] ?>"><?= e($d['name']) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Tgl Bergabung</label>
+                      <input type="date" name="join_date" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>" required>
+                    </div>
+                  </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Nama Lengkap</label>
-                  <input type="text" name="full_name" class="form-control" placeholder="Contoh: Hermawan" required>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Email</label>
-                  <input type="email" name="email" class="form-control" placeholder="contoh@gajiku.com" required>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Nomor Telepon</label>
-                  <input type="text" name="phone" class="form-control" placeholder="0812xxxxxxxx">
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Divisi</label>
-                  <select name="division_id" class="form-select form-control" required>
-                    <option value="">-- Pilih Divisi --</option>
-                    <?php foreach ($divisions as $d): ?>
-                      <option value="<?= $d['id'] ?>"><?= e($d['name']) ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Tanggal Bergabung</label>
-                  <input type="date" name="join_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Gaji Pokok Awal (Rp)</label>
-                  <input type="number" name="basic_salary" class="form-control" placeholder="3000000" required>
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label font-weight-bold">Nama Bank</label>
-                  <input type="text" name="bank_name" class="form-control" placeholder="BCA">
-                </div>
-                <div class="col-md-3 mb-3">
-                  <label class="form-label font-weight-bold">No. Rekening</label>
-                  <input type="text" name="account_number" class="form-control" placeholder="123456789">
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Username Akun</label>
-                  <input type="text" name="username" class="form-control" placeholder="Boleh dikosongkan (otomatis)">
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Password Login</label>
-                  <input type="password" name="password" class="form-control" placeholder="Default: emp123" value="emp123" required>
+
+                <!-- Tab 2: Gaji & Akun -->
+                <div class="tab-pane fade" id="add-account-pane" role="tabpanel">
+                  <div class="row g-2">
+                    <div class="col-12 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Gaji Pokok Awal (Rp)</label>
+                      <input type="number" name="basic_salary" class="form-control form-control-sm" placeholder="Contoh: 3000000 (0 = Tanpa Gaji)">
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Nama Bank</label>
+                      <input type="text" name="bank_name" class="form-control form-control-sm" placeholder="BCA">
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">No. Rekening</label>
+                      <input type="text" name="account_number" class="form-control form-control-sm" placeholder="123456789">
+                    </div>
+                    <div class="col-12"><hr class="my-2 opacity-25"></div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Username Login</label>
+                      <input type="text" name="username" class="form-control form-control-sm" placeholder="Otomatis jika kosong">
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Password Login</label>
+                      <input type="password" name="password" class="form-control form-control-sm" placeholder="Default: emp123" value="emp123" required>
+                    </div>
+                  </div>
                 </div>
               </div>
+
             </div>
-            <div class="modal-footer border-top">
-              <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Batal</button>
-              <button type="submit" class="btn btn-primary rounded-pill font-weight-bold px-4">Simpan Karyawan</button>
+            <div class="modal-footer py-2 px-4 border-top">
+              <button type="button" class="btn btn-sm btn-light rounded-pill px-3" data-bs-dismiss="modal">Batal</button>
+              <button type="submit" class="btn btn-sm btn-primary rounded-pill font-weight-bold px-4">Simpan Karyawan</button>
             </div>
           </form>
         </div>
@@ -650,68 +678,96 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
 
     <!-- Modal Edit Employee -->
     <div class="modal fade" id="editEmployeeModal" tabindex="-1">
-      <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
-          <div class="modal-header border-bottom" style="background: linear-gradient(135deg, #ffc10708, #6c63ff08);">
-            <h5 class="modal-title font-weight-bold text-dark"><i class="fa-solid fa-user-pen me-2 text-warning"></i> Edit Data Karyawan</h5>
+          <div class="modal-header border-bottom py-3 px-4" style="background: linear-gradient(135deg, #ffc10710, #6c63ff08);">
+            <h5 class="modal-title font-weight-bold text-dark fs-6"><i class="fa-solid fa-user-pen me-2 text-warning"></i> Edit Data Karyawan</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <form action="<?= BASE_URL ?>/employees.php" method="POST">
             <?= csrfField() ?>
             <input type="hidden" name="action" value="edit_employee">
             <input type="hidden" name="id" id="editEmpId">
-            <div class="modal-body p-4">
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">NIK Internal</label>
-                  <input type="text" name="nik" id="editEmpNik" class="form-control" required>
+
+            <div class="modal-body p-3 px-4">
+              <!-- Nav Tabs -->
+              <ul class="nav nav-pills nav-fill bg-light p-1 rounded-3 mb-3 small" role="tablist" style="font-size: 0.82rem;">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link active py-1.5 font-weight-bold rounded-2" id="edit-profile-tab" data-bs-toggle="tab" data-bs-target="#edit-profile-pane" type="button" role="tab">
+                    <i class="fa-solid fa-user me-1"></i> Data Pribadi
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link py-1.5 font-weight-bold rounded-2" id="edit-account-tab" data-bs-toggle="tab" data-bs-target="#edit-account-pane" type="button" role="tab">
+                    <i class="fa-solid fa-key me-1"></i> Rekening &amp; Akun
+                  </button>
+                </li>
+              </ul>
+
+              <div class="tab-content">
+                <!-- Tab 1: Data Pribadi -->
+                <div class="tab-pane fade show active" id="edit-profile-pane" role="tabpanel">
+                  <div class="row g-2">
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">NIK Internal</label>
+                      <input type="text" name="nik" id="editEmpNik" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Nama Lengkap</label>
+                      <input type="text" name="full_name" id="editEmpFullName" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Email Kontak</label>
+                      <input type="email" name="email" id="editEmpEmail" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">No. Telepon</label>
+                      <input type="text" name="phone" id="editEmpPhone" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Divisi</label>
+                      <select name="division_id" id="editEmpDivisionId" class="form-select form-control form-control-sm" required>
+                        <option value="">-- Pilih Divisi --</option>
+                        <?php foreach ($divisions as $d): ?>
+                          <option value="<?= $d['id'] ?>"><?= e($d['name']) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Tgl Bergabung</label>
+                      <input type="date" name="join_date" id="editEmpJoinDate" class="form-control form-control-sm" required>
+                    </div>
+                  </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Nama Lengkap</label>
-                  <input type="text" name="full_name" id="editEmpFullName" class="form-control" required>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Email</label>
-                  <input type="email" name="email" id="editEmpEmail" class="form-control" required>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Nomor Telepon</label>
-                  <input type="text" name="phone" id="editEmpPhone" class="form-control">
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Divisi</label>
-                  <select name="division_id" id="editEmpDivisionId" class="form-select form-control" required>
-                    <option value="">-- Pilih Divisi --</option>
-                    <?php foreach ($divisions as $d): ?>
-                      <option value="<?= $d['id'] ?>"><?= e($d['name']) ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Tanggal Bergabung</label>
-                  <input type="date" name="join_date" id="editEmpJoinDate" class="form-control" required>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Nama Bank</label>
-                  <input type="text" name="bank_name" id="editEmpBankName" class="form-control" placeholder="BCA">
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">No. Rekening</label>
-                  <input type="text" name="account_number" id="editEmpAccountNumber" class="form-control">
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Username Login</label>
-                  <input type="text" name="username" id="editEmpUsername" class="form-control" placeholder="Biarkan kosong jika tidak diubah">
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label class="form-label font-weight-bold">Password Baru</label>
-                  <input type="password" name="new_password" id="editEmpNewPassword" class="form-control" placeholder="Biarkan kosong jika tidak diubah">
+
+                <!-- Tab 2: Rekening & Akun -->
+                <div class="tab-pane fade" id="edit-account-pane" role="tabpanel">
+                  <div class="row g-2">
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Nama Bank</label>
+                      <input type="text" name="bank_name" id="editEmpBankName" class="form-control form-control-sm" placeholder="Contoh: BCA">
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">No. Rekening</label>
+                      <input type="text" name="account_number" id="editEmpAccountNumber" class="form-control form-control-sm" placeholder="Nomor rekening">
+                    </div>
+                    <div class="col-12"><hr class="my-2 opacity-25"></div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Username Login</label>
+                      <input type="text" name="username" id="editEmpUsername" class="form-control form-control-sm" placeholder="Tetap jika kosong">
+                    </div>
+                    <div class="col-6 mb-2">
+                      <label class="form-label small font-weight-bold mb-1">Password Baru</label>
+                      <input type="password" name="new_password" id="editEmpNewPassword" class="form-control form-control-sm" placeholder="Tetap jika kosong">
+                    </div>
+                  </div>
                 </div>
               </div>
+
             </div>
-            <div class="modal-footer border-top">
-              <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Batal</button>
-              <button type="submit" class="btn btn-warning text-dark rounded-pill font-weight-bold px-4">Simpan Perubahan</button>
+            <div class="modal-footer py-2 px-4 border-top">
+              <button type="button" class="btn btn-sm btn-light rounded-pill px-3" data-bs-dismiss="modal">Batal</button>
+              <button type="submit" class="btn btn-sm btn-warning text-dark rounded-pill font-weight-bold px-4">Simpan Perubahan</button>
             </div>
           </form>
         </div>
@@ -722,32 +778,32 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
     <div class="modal fade" id="updateSalaryModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
-          <div class="modal-header border-bottom" style="background: linear-gradient(135deg, #10B98108, #4B49AC08);">
-            <h5 class="modal-title font-weight-bold text-dark"><i class="fa-solid fa-coins me-2 text-success"></i> Perbarui Gaji Pokok Karyawan</h5>
+          <div class="modal-header border-bottom py-3 px-4" style="background: linear-gradient(135deg, #10B98108, #4B49AC08);">
+            <h5 class="modal-title font-weight-bold text-dark fs-6"><i class="fa-solid fa-coins me-2 text-success"></i> Perbarui Gaji Pokok Karyawan</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <form action="<?= BASE_URL ?>/employees.php" method="POST">
             <?= csrfField() ?>
             <input type="hidden" name="action" value="update_salary">
             <input type="hidden" name="employee_id" id="updateSalaryEmpId">
-            <div class="modal-body p-4">
-              <p class="text-muted small">Aturan: Perubahan gaji pokok baru akan dicatat sebagai histori baru dan <strong>TIDAK MERUBAH</strong> payroll lama yang sudah final.</p>
-              <div class="mb-3">
-                <label class="form-label font-weight-bold">Nominal Gaji Pokok Baru (Rp)</label>
-                <input type="number" name="basic_salary" class="form-control" required placeholder="Contoh: 3500000">
+            <div class="modal-body p-3 px-4">
+              <p class="text-muted small mb-3">Aturan: Perubahan gaji pokok baru akan dicatat sebagai histori baru dan <strong>TIDAK MERUBAH</strong> payroll lama yang sudah final.</p>
+              <div class="mb-2">
+                <label class="form-label small font-weight-bold mb-1">Nominal Gaji Pokok Baru (Rp)</label>
+                <input type="number" name="basic_salary" class="form-control form-control-sm" required placeholder="Contoh: 3500000">
               </div>
-              <div class="mb-3">
-                <label class="form-label font-weight-bold">Tanggal Efektif Berlaku</label>
-                <input type="date" name="effective_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
+              <div class="mb-2">
+                <label class="form-label small font-weight-bold mb-1">Tanggal Efektif Berlaku</label>
+                <input type="date" name="effective_date" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>" required>
               </div>
-              <div class="mb-3">
-                <label class="form-label font-weight-bold">Catatan Penyesuaian Gaji</label>
-                <input type="text" name="notes" class="form-control" placeholder="Contoh: Kenaikan Gaji Berkala 2026">
+              <div class="mb-2">
+                <label class="form-label small font-weight-bold mb-1">Catatan Penyesuaian Gaji</label>
+                <input type="text" name="notes" class="form-control form-control-sm" placeholder="Contoh: Kenaikan Gaji Berkala 2026">
               </div>
             </div>
-            <div class="modal-footer border-top">
-              <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Batal</button>
-              <button type="submit" class="btn btn-success rounded-pill font-weight-bold px-4">Simpan Histori Gaji</button>
+            <div class="modal-footer py-2 px-4 border-top">
+              <button type="button" class="btn btn-sm btn-light rounded-pill px-3" data-bs-dismiss="modal">Batal</button>
+              <button type="submit" class="btn btn-sm btn-success rounded-pill font-weight-bold px-4">Simpan Histori Gaji</button>
             </div>
           </form>
         </div>
@@ -773,6 +829,13 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
           document.getElementById('editEmpNewPassword').value = '';
         }
         
+        // Reset active tab to first tab
+        const firstTab = document.getElementById('edit-profile-tab');
+        if (firstTab && typeof bootstrap !== 'undefined') {
+          const tabObj = bootstrap.Tab.getOrCreateInstance(firstTab);
+          tabObj.show();
+        }
+
         var modal = new bootstrap.Modal(document.getElementById('editEmployeeModal'));
         modal.show();
       }
