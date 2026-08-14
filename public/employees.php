@@ -215,7 +215,7 @@ $sql = "
     LEFT JOIN teams t ON e.team_id = t.id
     LEFT JOIN users u ON e.user_id = u.id
     LEFT JOIN roles r ON u.role_id = r.id
-    WHERE 1=1
+    WHERE (u.role_id IS NULL OR u.role_id != 1) AND (r.slug IS NULL OR r.slug != 'super_admin')
 ";
 $params = [];
 
@@ -255,7 +255,7 @@ if ($detailId > 0) {
         LEFT JOIN teams t ON e.team_id = t.id
         LEFT JOIN users u ON e.user_id = u.id
         LEFT JOIN roles r ON u.role_id = r.id
-        WHERE e.id = ?
+        WHERE e.id = ? AND (u.role_id IS NULL OR u.role_id != 1) AND (r.slug IS NULL OR r.slug != 'super_admin')
     ");
     $stmtDetail->execute([$detailId]);
     $selectedEmployee = $stmtDetail->fetch();
@@ -422,11 +422,7 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                             </span>
                           </td>
                           <td>
-                            <?php if ($emp['role_slug'] === 'super_admin'): ?>
-                              <span class="badge bg-light text-muted border font-weight-bold px-2 py-1" style="font-size: 0.75rem;">Tanpa Gaji (Super Admin)</span>
-                            <?php else: ?>
-                              <span class="font-weight-bold text-success" style="font-size: 0.85rem;"><?= formatRupiah($emp['current_salary']) ?></span>
-                            <?php endif; ?>
+                            <span class="font-weight-bold text-success" style="font-size: 0.85rem;"><?= formatRupiah($emp['current_salary']) ?></span>
                           </td>
                           <td>
                             <div class="d-flex gap-1 justify-content-end" onclick="event.stopPropagation();">
@@ -521,18 +517,12 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                 <div>
                   <div class="d-flex justify-content-between align-items-center mb-3 border-top pt-4">
                     <h6 class="font-weight-bold text-muted mb-0 small uppercase">HISTORI GAJI POKOK</h6>
-                    <?php if ($selectedEmployee['role_slug'] !== 'super_admin'): ?>
-                      <button class="btn btn-xs btn-success rounded-pill font-weight-bold px-2.5" data-bs-toggle="modal" data-bs-target="#updateSalaryModal">
-                        <i class="fa-solid fa-plus me-1"></i> Update Gaji
-                      </button>
-                    <?php endif; ?>
+                    <button class="btn btn-xs btn-success rounded-pill font-weight-bold px-2.5" data-bs-toggle="modal" data-bs-target="#updateSalaryModal">
+                      <i class="fa-solid fa-plus me-1"></i> Update Gaji
+                    </button>
                   </div>
 
-                  <?php if ($selectedEmployee['role_slug'] === 'super_admin'): ?>
-                    <div class="alert alert-light border rounded-3 p-3 text-muted small mb-0">
-                      <i class="fa-solid fa-user-shield me-1 text-primary"></i> Super Admin adalah akun administrator sistem (tidak memiliki gaji pokok dan tidak diikutsertakan dalam payroll).
-                    </div>
-                  <?php elseif (empty($salaryHistories)): ?>
+                  <?php if (empty($salaryHistories)): ?>
                     <p class="text-muted small italic text-center py-3">Belum ada riwayat gaji pokok.</p>
                   <?php else: ?>
                     <div class="table-responsive">

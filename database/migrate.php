@@ -126,15 +126,25 @@ $queries = [
         start_date DATE,
         due_date DATE,
         priority TEXT DEFAULT 'normal', -- low, normal, high, urgent
-        status TEXT DEFAULT 'pending', -- pending, in_progress, completed, overdue
+        status TEXT DEFAULT 'pending', -- pending, in_progress, in_review, completed, overdue
         bonus_type_id INTEGER, -- optional linked bonus type
         bonus_quantity INTEGER DEFAULT 1,
+        admin_notes TEXT,
+        example_url TEXT,
+        example_file TEXT,
+        submission_notes TEXT,
+        submission_url TEXT,
+        submission_file TEXT,
+        audit_notes TEXT,
+        audited_by INTEGER,
+        audited_at DATETIME,
         created_by INTEGER NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE SET NULL,
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
         FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL,
+        FOREIGN KEY (audited_by) REFERENCES users(id) ON DELETE SET NULL,
         FOREIGN KEY (created_by) REFERENCES users(id)
     )",
 
@@ -170,6 +180,24 @@ $queries = [
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
         FOREIGN KEY (uploaded_by) REFERENCES users(id)
+    )",
+
+    // 13. Task Chats (Real-Time Discussion Between Admin & Employee)
+    "CREATE TABLE IF NOT EXISTS task_chats (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        reply_to_id INTEGER DEFAULT NULL,
+        message TEXT NOT NULL,
+        attachment TEXT,
+        is_read INTEGER DEFAULT 0,
+        is_edited INTEGER DEFAULT 0,
+        is_deleted INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT NULL,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (reply_to_id) REFERENCES task_chats(id) ON DELETE SET NULL
     )",
 
     // 14. Bonus Types (Master Bonus)

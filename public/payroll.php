@@ -484,8 +484,8 @@ if ($selectedPeriodId > 0) {
                     foreach ($bonusTypes as $bt) {
                         $rate = (float)$bt['rate'];
                         if ($bt['calculation_method'] === 'team' && $emp['division_id'] !== null) {
-                            // Count active employees in this division
-                            $stmtCount = $db->prepare("SELECT COUNT(*) FROM employees WHERE division_id = ? AND status = 'active'");
+                            // Count active employees in this division (excluding Super Admin)
+                            $stmtCount = $db->prepare("SELECT COUNT(*) FROM employees e LEFT JOIN users u ON e.user_id = u.id WHERE e.division_id = ? AND e.status = 'active' AND (u.role_id IS NULL OR u.role_id != 1)");
                             $stmtCount->execute([$emp['division_id']]);
                             $divCount = (int)$stmtCount->fetchColumn();
                             if ($divCount > 0) {
@@ -509,8 +509,8 @@ if ($selectedPeriodId > 0) {
                     foreach ($deductionTypes as $dt) {
                         $amount = (float)$dt['default_amount'];
                         if ($dt['calculation_method'] === 'team' && $emp['division_id'] !== null) {
-                            // Count active employees in this division
-                            $stmtCount = $db->prepare("SELECT COUNT(*) FROM employees WHERE division_id = ? AND status = 'active'");
+                            // Count active employees in this division (excluding Super Admin)
+                            $stmtCount = $db->prepare("SELECT COUNT(*) FROM employees e LEFT JOIN users u ON e.user_id = u.id WHERE e.division_id = ? AND e.status = 'active' AND (u.role_id IS NULL OR u.role_id != 1)");
                             $stmtCount->execute([$emp['division_id']]);
                             $divCount = (int)$stmtCount->fetchColumn();
                             if ($divCount > 0) {

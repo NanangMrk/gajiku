@@ -356,10 +356,31 @@ php database/seed.php
 
 | Role | Username | Password | Akses |
 |---|---|---|---|
-| Super Admin | `admin` | `admin123` | Semua fitur |
-| Karyawan (contoh) | `employee` | `employee123` | Slip gaji & tugas sendiri |
+| Super Admin | `admin` | `admin123` | Akses penuh seluruh sistem (Administrator) |
+| Admin / HR | `hradmin` | `hr123` | Manajemen Karyawan, Payroll, Tugas, Bonus |
+| Karyawan (Teknisi) | `andi` | `emp123` | Slip gaji, Tugas, Chat, Bonus sendiri |
+| Karyawan (Teknisi) | `budi` | `emp123` | Slip gaji, Tugas, Chat, Bonus sendiri |
 
 > **⚠️ Penting:** Segera ganti password setelah login pertama melalui menu **Profil**.
+
+---
+
+## 📱 Build Aplikasi Android (APK / AAB)
+
+Aplikasi **Gajiku** telah dilengkapi wrapper native Android berbasis **Capacitor**:
+- Konfigurasi: `capacitor.config.json` (App ID: `id.nanangmrk.gajiku`, URL Produksi: `https://gajiku.nanangmrk.id/`)
+- Persistent Login: Didukung oleh *persistent remember token* HTTP-only cookies yang aman.
+
+### Langkah Cepat Build APK:
+```bash
+# 1. Install dependency & sync
+npm install
+npx cap sync android
+
+# 2. Buka di Android Studio
+npx cap open android
+```
+> Panduan lengkap mengenai signing Keystore, generate APK Debug/Release, dan konfigurasi URL produksi tersedia di file [ANDROID_BUILD.md](file:///Applications/MAMP/htdocs/gajiku/ANDROID_BUILD.md).
 
 ---
 

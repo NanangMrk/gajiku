@@ -1,6 +1,6 @@
 <?php
 // database/seed.php
-require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../app/Config/database.php';
 
 echo "Running Database Seeder...\n";
 
@@ -84,7 +84,6 @@ foreach ($teams as $t) {
 
 // 6. Seed Employees
 $employees = [
-    [1, 1, 'EMP-001', 'Super Admin', 'admin@gajiku.com', '081234567890', 'Jl. Utama No 1', 4, NULL, 'System Administrator', '2025-01-01', 'active', 'BCA', '1234567890', 5000000],
     [2, 2, 'EMP-002', 'Siti Rahma HR', 'hr@gajiku.com', '081234567891', 'Jl. Merdeka No 12', 4, NULL, 'HR Specialist', '2025-02-01', 'active', 'Mandiri', '9876543210', 4500000],
     [3, 3, 'EMP-003', 'Andi Pratama', 'andi@gajiku.com', '081234567892', 'Jl. Mawar No 4', 1, 1, 'Teknisi Lapangan', '2025-03-01', 'active', 'BCA', '1122334455', 3000000],
     [4, 4, 'EMP-004', 'Budi Santoso', 'budi@gajiku.com', '081234567893', 'Jl. Melati No 8', 1, 1, 'Teknisi Lapangan', '2025-03-15', 'active', 'BRI', '5544332211', 3000000]

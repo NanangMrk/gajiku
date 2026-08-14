@@ -43,8 +43,8 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
       <?php if ($user['role_slug'] === 'super_admin' || $user['role_slug'] === 'admin_hr'): ?>
         <!-- SUPER ADMIN / ADMIN HR DASHBOARD -->
         <?php
-          $totalEmployees = (int)$db->query("SELECT COUNT(*) FROM employees WHERE status = 'active'")->fetchColumn();
-          $totalActiveTasks = (int)$db->query("SELECT COUNT(*) FROM tasks WHERE status IN ('pending', 'in_progress')")->fetchColumn();
+          $totalEmployees = (int)$db->query("SELECT COUNT(*) FROM employees e LEFT JOIN users u ON e.user_id = u.id WHERE e.status = 'active' AND (u.role_id IS NULL OR u.role_id != 1)")->fetchColumn();
+          $totalActiveTasks = (int)$db->query("SELECT COUNT(*) FROM tasks WHERE status IN ('pending', 'in_progress', 'in_review')")->fetchColumn();
           $totalOverdueTasks = (int)$db->query("SELECT COUNT(*) FROM tasks WHERE status = 'overdue' OR (status != 'completed' AND due_date < date('now'))")->fetchColumn();
           $pendingBonuses = (int)$db->query("SELECT COUNT(*) FROM bonus_transactions WHERE status = 'pending'")->fetchColumn();
           $totalBonusThisMonth = (float)$db->query("SELECT SUM(total_amount) FROM bonus_transactions WHERE status = 'approved' AND strftime('%Y-%m', transaction_date) = strftime('%Y-%m', 'now')")->fetchColumn();
@@ -174,7 +174,7 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                     SELECT t.*, e.full_name as pic_name
                     FROM tasks t
                     LEFT JOIN employees e ON t.employee_id = e.id
-                    WHERE t.status IN ('pending', 'in_progress')
+                    WHERE t.status IN ('pending', 'in_progress', 'in_review')
                     ORDER BY t.due_date ASC LIMIT 5
                   ");
                   $upcomingTasks = $stmtUpcomingTasks->fetchAll();
@@ -190,9 +190,14 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                       <div class="list-group-item px-0 py-2 border-bottom">
                         <div class="d-flex justify-content-between align-items-center">
                           <h6 class="mb-1 font-weight-bold text-dark"><?= e($t['title']) ?></h6>
-                          <span class="badge bg-<?= $t['priority'] === 'urgent' ? 'danger' : ($t['priority'] === 'high' ? 'warning' : 'info') ?>">
-                            <?= strtoupper($t['priority']) ?>
-                          </span>
+                          <div class="d-flex gap-1">
+                            <?php if ($t['status'] === 'in_review'): ?>
+                              <span class="badge bg-warning text-dark font-weight-bold">AUDIT</span>
+                            <?php endif; ?>
+                            <span class="badge bg-<?= $t['priority'] === 'urgent' ? 'danger' : ($t['priority'] === 'high' ? 'warning' : 'info') ?>">
+                              <?= strtoupper($t['priority']) ?>
+                            </span>
+                          </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-1">
                           <small class="text-muted"><i class="fa-solid fa-user me-1"></i> <?= e($t['pic_name'] ?? 'Tim/Divisi') ?></small>
@@ -214,7 +219,7 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
 
           $stmtMyTasksCount = $db->prepare("
             SELECT 
-              SUM(CASE WHEN status IN ('pending', 'in_progress') THEN 1 ELSE 0 END) as active_tasks,
+              SUM(CASE WHEN status IN ('pending', 'in_progress', 'in_review') THEN 1 ELSE 0 END) as active_tasks,
               SUM(CASE WHEN status = 'overdue' OR (status != 'completed' AND due_date < date('now')) THEN 1 ELSE 0 END) as overdue_tasks,
               SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_tasks
             FROM tasks t
@@ -300,7 +305,7 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                     FROM tasks t
                     LEFT JOIN task_assignments ta ON t.id = ta.task_id
                     WHERE (t.employee_id = ? OR ta.employee_id = ? OR t.team_id = ? OR t.division_id = ?)
-                    AND t.status IN ('pending', 'in_progress')
+                    AND t.status IN ('pending', 'in_progress', 'in_review')
                     ORDER BY t.due_date ASC LIMIT 5
                   ");
                   $stmtMyTasksList->execute([$employeeId, $employeeId, $user['team_id'] ?? 0, $user['division_id'] ?? 0]);
@@ -335,7 +340,13 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                               </span>
                             </td>
                             <td>
-                              <span class="badge bg-secondary"><?= str_replace('_', ' ', strtoupper($mt['status'])) ?></span>
+                              <?php if ($mt['status'] === 'in_review'): ?>
+                                <span class="badge bg-warning text-dark font-weight-bold">MENUNGGU AUDIT</span>
+                              <?php elseif ($mt['status'] === 'in_progress'): ?>
+                                <span class="badge bg-primary text-white font-weight-bold">SEDANG DIKERJAKAN</span>
+                              <?php else: ?>
+                                <span class="badge bg-secondary text-white font-weight-bold"><?= str_replace('_', ' ', strtoupper($mt['status'])) ?></span>
+                              <?php endif; ?>
                             </td>
                             <td>
                               <a href="<?= BASE_URL ?>/tasks.php?id=<?= $mt['id'] ?>" class="btn btn-xs btn-outline-primary rounded-pill">Detail</a>

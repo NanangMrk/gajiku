@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) {
             // Check if division has employees
-            $stmtCheck = $db->prepare("SELECT COUNT(*) FROM employees WHERE division_id = ? AND status = 'active'");
+            $stmtCheck = $db->prepare("SELECT COUNT(*) FROM employees e LEFT JOIN users u ON e.user_id = u.id WHERE e.division_id = ? AND e.status = 'active' AND (u.role_id IS NULL OR u.role_id != 1)");
             $stmtCheck->execute([$id]);
             $empCount = (int)$stmtCheck->fetchColumn();
 
@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $stmtDivs = $db->query("
     SELECT d.*, 
-           (SELECT COUNT(*) FROM employees WHERE division_id = d.id AND status = 'active') as member_count,
+           (SELECT COUNT(*) FROM employees e LEFT JOIN users u ON e.user_id = u.id WHERE e.division_id = d.id AND e.status = 'active' AND (u.role_id IS NULL OR u.role_id != 1)) as member_count,
            (SELECT COUNT(*) FROM teams WHERE division_id = d.id) as team_count
     FROM divisions d
     ORDER BY d.id ASC
