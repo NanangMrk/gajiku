@@ -14,5 +14,10 @@ require_once __DIR__ . '/Config/database.php';
 // Helpers
 require_once __DIR__ . '/Helpers/functions.php';
 require_once __DIR__ . '/Helpers/csrf.php';
+require_once __DIR__ . '/Helpers/remember.php';
 require_once __DIR__ . '/Helpers/auth.php';
 require_once __DIR__ . '/Helpers/permissions.php';
+
+// Auto restore session if remember cookie exists
+restoreSessionFromRememberToken();
+

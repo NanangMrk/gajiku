@@ -50,7 +50,7 @@
   <script src="<?= BASE_URL ?>/assets/js/settings.js"></script>
   <script src="<?= BASE_URL ?>/assets/js/todolist.js"></script>
   
-  <!-- Auto-hide Flash Messages -->
+  <!-- Auto-hide Flash Messages & Android Back Button Handler -->
   <script>
     document.addEventListener("DOMContentLoaded", function() {
         const alerts = document.querySelectorAll('.alert-dismissible');
@@ -60,6 +60,20 @@
                 bsAlert.close();
             }, 5000);
         });
+
+        // Android Hardware Back Button listener if running inside Capacitor APK
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('backButton', function() {
+                const currentPath = window.location.pathname;
+                if (currentPath.endsWith('/dashboard.php') || currentPath.endsWith('/login.php') || currentPath === '/' || currentPath === '') {
+                    window.Capacitor.Plugins.App.minimizeApp();
+                } else if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    window.location.href = '<?= BASE_URL ?>/dashboard.php';
+                }
+            });
+        }
     });
   </script>
 </body>

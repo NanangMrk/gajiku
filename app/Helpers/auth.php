@@ -51,6 +51,9 @@ function attemptLogin(string $usernameOrEmail, string $password): bool {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['role_id'] = $user['role_id'];
         
+        // Issue persistent remember token
+        createRememberToken((int)$user['id']);
+        
         logAudit($user['id'], 'LOGIN', 'User logged in successfully');
         return true;
     }
@@ -62,6 +65,10 @@ function logoutUser(): void {
     if (isLoggedIn()) {
         logAudit($_SESSION['user_id'], 'LOGOUT', 'User logged out');
     }
+    
+    // Revoke persistent remember token from SQLite database and clear cookie
+    revokeRememberToken();
+    
     $_SESSION = [];
     if (ini_get("session.use_cookies")) {
         $params = session_get_cookie_params();

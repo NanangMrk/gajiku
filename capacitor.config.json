@@ -1,0 +1,18 @@
+{
+  "appId": "id.nanangmrk.gajiku",
+  "appName": "Gajiku",
+  "webDir": "public",
+  "server": {
+    "url": "https://gajiku.nanangmrk.id/",
+    "cleartext": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#4B49AC",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    }
+  }
+}

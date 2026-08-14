@@ -1,6 +1,6 @@
 <?php
 // database/migrate.php
-require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../app/Config/database.php';
 
 echo "Running Database Migration...\n";
 
@@ -372,6 +372,18 @@ $queries = [
         created_by INTEGER NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (created_by) REFERENCES users(id)
+    )",
+
+    // 28. Remember Tokens (Persistent Mobile & Web Login)
+    "CREATE TABLE IF NOT EXISTS remember_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        selector TEXT NOT NULL UNIQUE,
+        token_hash TEXT NOT NULL,
+        expires_at DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )"
 ];
 
@@ -390,7 +402,8 @@ $indexes = [
     "CREATE INDEX IF NOT EXISTS idx_bonus_tx_status ON bonus_transactions(status)",
     "CREATE INDEX IF NOT EXISTS idx_payrolls_period ON payrolls(payroll_period_id)",
     "CREATE INDEX IF NOT EXISTS idx_payrolls_employee ON payrolls(employee_id)",
-    "CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id)"
+    "CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_remember_tokens_selector ON remember_tokens(selector)"
 ];
 
 foreach ($indexes as $idx) {
