@@ -20,17 +20,20 @@ if ($user) {
 ?>
 <!-- Skydash Top Navbar -->
 <nav class="navbar col-lg-12 col-12 p-0 fixed-top d-flex flex-row">
-  <div class="text-center navbar-brand-wrapper d-flex align-items-center justify-content-start ps-3">
+  <div class="navbar-brand-wrapper d-flex align-items-center justify-content-start ps-2 ps-lg-3">
+    <button class="navbar-toggler-mobile-menu d-lg-none me-2" type="button" data-toggle="offcanvas" aria-label="Toggle navigation">
+      <i class="fa-solid fa-bars"></i>
+    </button>
     <a class="navbar-brand brand-logo d-flex align-items-center fw-bold text-primary text-decoration-none" href="<?= BASE_URL ?>/dashboard.php">
-      <i class="fa-solid fa-wallet me-2 fs-4"></i> Gajiku
+      <i class="fa-solid fa-wallet me-1.5 fs-4"></i> <span>Gajiku</span>
     </a>
     <a class="navbar-brand brand-logo-mini text-primary fw-bold text-decoration-none" href="<?= BASE_URL ?>/dashboard.php">
       <i class="fa-solid fa-wallet fs-4"></i>
     </a>
   </div>
-  <div class="navbar-menu-wrapper d-flex align-items-center justify-content-end">
-    <button class="navbar-toggler navbar-toggler align-self-center" type="button" data-toggle="minimize">
-      <span class="icon-menu"></span>
+  <div class="navbar-menu-wrapper d-flex align-items-center justify-content-end pe-2 pe-lg-3">
+    <button class="navbar-toggler navbar-toggler align-self-center d-none d-lg-block" type="button" data-toggle="minimize" aria-label="Toggle sidebar">
+      <i class="fa-solid fa-bars fs-5"></i>
     </button>
     
     <ul class="navbar-nav navbar-nav-right">
@@ -101,9 +104,5 @@ if ($user) {
         </div>
       </li>
     </ul>
-    
-    <button class="navbar-toggler navbar-toggler-right d-lg-none align-self-center" type="button" data-toggle="offcanvas">
-      <span class="icon-menu"></span>
-    </button>
   </div>
 </nav>

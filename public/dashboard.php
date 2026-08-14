@@ -51,55 +51,55 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
         ?>
 
         <!-- Stat Cards Row -->
-        <div class="row">
-          <div class="col-md-3 grid-margin stretch-card">
+        <div class="row g-2 g-md-3 mb-3">
+          <div class="col-6 col-md-3 grid-margin stretch-card">
             <div class="card bg-primary text-white shadow-sm border-0 rounded-4">
-              <div class="card-body p-4">
+              <div class="card-body p-3 p-md-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <p class="fs-6 font-weight-bold mb-0">Total Karyawan Aktif</p>
-                  <i class="fa-solid fa-users fs-3 opacity-75"></i>
+                  <p class="fs-7 fs-md-6 font-weight-bold mb-0 text-truncate">Karyawan Aktif</p>
+                  <i class="fa-solid fa-users fs-4 fs-md-3 opacity-75"></i>
                 </div>
-                <h2 class="font-weight-bold mb-0"><?= $totalEmployees ?></h2>
-                <small class="text-white-50 mt-2 d-block">Struktur Organisasi</small>
+                <h3 class="font-weight-bold mb-0 fs-4 fs-md-2"><?= $totalEmployees ?></h3>
+                <small class="text-white-50 mt-1 mt-md-2 d-block fs-8">Organisasi</small>
               </div>
             </div>
           </div>
 
-          <div class="col-md-3 grid-margin stretch-card">
+          <div class="col-6 col-md-3 grid-margin stretch-card">
             <div class="card bg-success text-white shadow-sm border-0 rounded-4">
-              <div class="card-body p-4">
+              <div class="card-body p-3 p-md-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <p class="fs-6 font-weight-bold mb-0">Total Bonus (Bulan Ini)</p>
-                  <i class="fa-solid fa-gift fs-3 opacity-75"></i>
+                  <p class="fs-7 fs-md-6 font-weight-bold mb-0 text-truncate">Total Bonus</p>
+                  <i class="fa-solid fa-gift fs-4 fs-md-3 opacity-75"></i>
                 </div>
-                <h3 class="font-weight-bold mb-0"><?= formatRupiah($totalBonusThisMonth) ?></h3>
-                <small class="text-white-50 mt-2 d-block">Bonus disetujui</small>
+                <h4 class="font-weight-bold mb-0 fs-5 fs-md-3 text-truncate"><?= formatRupiah($totalBonusThisMonth) ?></h4>
+                <small class="text-white-50 mt-1 mt-md-2 d-block fs-8">Bulan ini</small>
               </div>
             </div>
           </div>
 
-          <div class="col-md-3 grid-margin stretch-card">
+          <div class="col-6 col-md-3 grid-margin stretch-card">
             <div class="card bg-warning text-dark shadow-sm border-0 rounded-4">
-              <div class="card-body p-4">
+              <div class="card-body p-3 p-md-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <p class="fs-6 font-weight-bold mb-0">Bonus Pending Approval</p>
-                  <i class="fa-solid fa-hourglass-half fs-3 opacity-75"></i>
+                  <p class="fs-7 fs-md-6 font-weight-bold mb-0 text-truncate">Pending Bonus</p>
+                  <i class="fa-solid fa-hourglass-half fs-4 fs-md-3 opacity-75"></i>
                 </div>
-                <h2 class="font-weight-bold mb-0"><?= $pendingBonuses ?></h2>
-                <small class="text-dark-50 mt-2 d-block">Membutuhkan persetujuan</small>
+                <h3 class="font-weight-bold mb-0 fs-4 fs-md-2"><?= $pendingBonuses ?></h3>
+                <small class="text-dark-50 mt-1 mt-md-2 d-block fs-8">Approval</small>
               </div>
             </div>
           </div>
 
-          <div class="col-md-3 grid-margin stretch-card">
+          <div class="col-6 col-md-3 grid-margin stretch-card">
             <div class="card bg-danger text-white shadow-sm border-0 rounded-4">
-              <div class="card-body p-4">
+              <div class="card-body p-3 p-md-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <p class="fs-6 font-weight-bold mb-0">Tugas Terlambat</p>
-                  <i class="fa-solid fa-exclamation-triangle fs-3 opacity-75"></i>
+                  <p class="fs-7 fs-md-6 font-weight-bold mb-0 text-truncate">Tugas Terlambat</p>
+                  <i class="fa-solid fa-exclamation-triangle fs-4 fs-md-3 opacity-75"></i>
                 </div>
-                <h2 class="font-weight-bold mb-0"><?= $totalOverdueTasks ?></h2>
-                <small class="text-white-50 mt-2 d-block">Dari total <?= $totalActiveTasks ?> tugas aktif</small>
+                <h3 class="font-weight-bold mb-0 fs-4 fs-md-2"><?= $totalOverdueTasks ?></h3>
+                <small class="text-white-50 mt-1 mt-md-2 d-block fs-8">Dari <?= $totalActiveTasks ?> tugas</small>
               </div>
             </div>
           </div>
@@ -248,42 +248,42 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
           $lastSlip = $stmtLastSlip->fetch();
         ?>
 
-        <div class="row">
-          <div class="col-md-4 grid-margin stretch-card">
+        <div class="row g-2 g-md-3 mb-3">
+          <div class="col-12 col-md-4 grid-margin stretch-card">
             <div class="card bg-primary text-white shadow-sm border-0 rounded-4">
-              <div class="card-body p-4">
+              <div class="card-body p-3 p-md-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                   <p class="fs-6 font-weight-bold mb-0">Tugas Belum Selesai</p>
-                  <i class="fa-solid fa-list-check fs-3 opacity-75"></i>
+                  <i class="fa-solid fa-list-check fs-4 fs-md-3 opacity-75"></i>
                 </div>
-                <h2 class="font-weight-bold mb-0"><?= (int)$myTasksStat['active_tasks'] ?></h2>
-                <small class="text-white-50 mt-2 d-block">Tugas aktif Anda</small>
+                <h3 class="font-weight-bold mb-0 fs-3 fs-md-2"><?= (int)$myTasksStat['active_tasks'] ?></h3>
+                <small class="text-white-50 mt-1 mt-md-2 d-block fs-8">Tugas aktif Anda</small>
               </div>
             </div>
           </div>
 
-          <div class="col-md-4 grid-margin stretch-card">
+          <div class="col-12 col-md-4 grid-margin stretch-card">
             <div class="card bg-success text-white shadow-sm border-0 rounded-4">
-              <div class="card-body p-4">
+              <div class="card-body p-3 p-md-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <p class="fs-6 font-weight-bold mb-0">Estimasi Bonus Bulan Ini</p>
-                  <i class="fa-solid fa-hand-holding-dollar fs-3 opacity-75"></i>
+                  <p class="fs-6 font-weight-bold mb-0">Estimasi Bonus</p>
+                  <i class="fa-solid fa-hand-holding-dollar fs-4 fs-md-3 opacity-75"></i>
                 </div>
-                <h3 class="font-weight-bold mb-0"><?= formatRupiah($myEstBonus) ?></h3>
-                <small class="text-white-50 mt-2 d-block">Bonus disetujui periode ini</small>
+                <h3 class="font-weight-bold mb-0 fs-4 fs-md-3 text-truncate"><?= formatRupiah($myEstBonus) ?></h3>
+                <small class="text-white-50 mt-1 mt-md-2 d-block fs-8">Bonus disetujui periode ini</small>
               </div>
             </div>
           </div>
 
-          <div class="col-md-4 grid-margin stretch-card">
+          <div class="col-12 col-md-4 grid-margin stretch-card">
             <div class="card bg-danger text-white shadow-sm border-0 rounded-4">
-              <div class="card-body p-4">
+              <div class="card-body p-3 p-md-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                   <p class="fs-6 font-weight-bold mb-0">Tugas Terlambat</p>
-                  <i class="fa-solid fa-clock fs-3 opacity-75"></i>
+                  <i class="fa-solid fa-clock fs-4 fs-md-3 opacity-75"></i>
                 </div>
-                <h2 class="font-weight-bold mb-0"><?= (int)$myTasksStat['overdue_tasks'] ?></h2>
-                <small class="text-white-50 mt-2 d-block">Perlu perhatian segera</small>
+                <h3 class="font-weight-bold mb-0 fs-3 fs-md-2"><?= (int)$myTasksStat['overdue_tasks'] ?></h3>
+                <small class="text-white-50 mt-1 mt-md-2 d-block fs-8">Perlu perhatian segera</small>
               </div>
             </div>
           </div>

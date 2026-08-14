@@ -4,12 +4,29 @@ require_once __DIR__ . '/../../Helpers/auth.php';
 require_once __DIR__ . '/../../Helpers/permissions.php';
 
 $uri = $_SERVER['REQUEST_URI'] ?? '';
+$sidebarUser = getAuthUser();
 function isActiveMenu(string $path, string $uri): string {
     return strpos($uri, $path) !== false ? 'active' : '';
 }
 ?>
 <!-- Skydash Sidebar Navigation -->
 <nav class="sidebar sidebar-offcanvas" id="sidebar">
+  <!-- Mobile Sidebar Brand & Close Header -->
+  <div class="sidebar-mobile-header d-flex align-items-center justify-content-between px-3 py-3 border-bottom d-lg-none mb-2 bg-light">
+    <div class="d-flex align-items-center gap-2">
+      <div class="bg-primary text-white rounded-3 d-flex align-items-center justify-content-center fw-bold shadow-sm" style="width: 38px; height: 38px;">
+        <i class="fa-solid fa-wallet fs-5"></i>
+      </div>
+      <div>
+        <h6 class="fw-bold mb-0 text-dark" style="font-size: 1rem;">Gajiku</h6>
+        <small class="text-muted" style="font-size: 0.75rem;"><?= e($sidebarUser['role_name'] ?? 'Menu Navigasi') ?></small>
+      </div>
+    </div>
+    <button type="button" class="btn btn-sm btn-light rounded-circle d-flex align-items-center justify-content-center shadow-sm" data-toggle="offcanvas" aria-label="Tutup Menu" style="width: 32px; height: 32px;">
+      <i class="fa-solid fa-xmark text-dark fs-6"></i>
+    </button>
+  </div>
+
   <ul class="nav">
     <!-- Dashboard -->
     <li class="nav-item <?= isActiveMenu('/dashboard.php', $uri) ?>">

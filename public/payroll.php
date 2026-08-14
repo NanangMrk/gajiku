@@ -594,8 +594,8 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
         </button>
         
         <!-- Mobile FAB Button -->
-        <button type="button" class="btn btn-primary d-md-none position-fixed rounded-circle shadow-lg d-flex align-items-center justify-content-center no-print" data-bs-toggle="modal" data-bs-target="#createPeriodModal" style="bottom: 80px; right: 20px; width: 52px; height: 52px; z-index: 1040; background: linear-gradient(135deg, #4B49AC 0%, #6366f1 100%); border: none; box-shadow: 0 4px 16px rgba(75, 73, 172, 0.45) !important;">
-          <i class="fa-solid fa-plus fs-3 text-white"></i>
+        <button type="button" class="btn btn-primary d-md-none position-fixed rounded-circle shadow-lg d-flex align-items-center justify-content-center no-print" data-bs-toggle="modal" data-bs-target="#createPeriodModal" style="bottom: calc(75px + env(safe-area-inset-bottom, 0px)); right: 18px; width: 50px; height: 50px; z-index: 1035; background: linear-gradient(135deg, #4B49AC 0%, #6366f1 100%); border: none; box-shadow: 0 4px 16px rgba(75, 73, 172, 0.45) !important;" aria-label="Buat Periode Baru">
+          <i class="fa-solid fa-plus fs-4 text-white"></i>
         </button>
       </div>
 
@@ -718,7 +718,7 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                   foreach ($payrollItems as $item): 
                     $grandTotal += (float)$item['take_home_pay'];
                 ?>
-                  <div class="col-md-6 col-lg-4 mb-4">
+                  <div class="col-12 col-md-6 col-lg-4 mb-4">
                     <form action="<?= BASE_URL ?>/payroll.php" method="POST" class="payroll-card-form h-100">
                       <?= csrfField() ?>
                       <input type="hidden" name="action" value="edit_employee_payroll">

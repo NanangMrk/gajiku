@@ -172,7 +172,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // 2. UPDATE ADMIN GUIDELINES / EXAMPLES (Admin only)
+    // 2. EDIT TASK (Super Admin & Admin HR)
+    if ($action === 'edit_task') {
+        if (!hasPermission('manage_tasks')) {
+            setFlashMessage('danger', 'Anda tidak memiliki hak akses untuk mengedit tugas.');
+            header('Location: ' . BASE_URL . '/tasks.php');
+            exit;
+        }
+
+        $id = (int)($_POST['id'] ?? 0);
+        $title = trim($_POST['title'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $assignType = $_POST['assign_type'] ?? 'employee';
+        $employeeId = !empty($_POST['employee_id']) ? (int)$_POST['employee_id'] : null;
+        $teamId = !empty($_POST['team_id']) ? (int)$_POST['team_id'] : null;
+        $divisionId = !empty($_POST['division_id']) ? (int)$_POST['division_id'] : null;
+        $startDate = $_POST['start_date'] ?? date('Y-m-d');
+        $dueDate = $_POST['due_date'] ?? date('Y-m-d');
+        $priority = $_POST['priority'] ?? 'normal';
+        $status = $_POST['status'] ?? 'pending';
+        $bonusTypeId = !empty($_POST['bonus_type_id']) ? (int)$_POST['bonus_type_id'] : null;
+        $bonusQuantity = (int)($_POST['bonus_quantity'] ?? 1);
+        $adminNotes = trim($_POST['admin_notes'] ?? '');
+        $exampleUrl = trim($_POST['example_url'] ?? '');
+        
+        $newExampleFile = handleTaskUpload('example_file', 'examples');
+
+        if ($id > 0 && !empty($title)) {
+            try {
+                $db->beginTransaction();
+
+                $stmtGet = $db->prepare("SELECT example_file, status FROM tasks WHERE id = ?");
+                $stmtGet->execute([$id]);
+                $oldTask = $stmtGet->fetch();
+                $fileToSave = $newExampleFile ?: ($oldTask['example_file'] ?? null);
+
+                $stmtUp = $db->prepare("
+                    UPDATE tasks 
+                    SET title = ?, description = ?, assign_type = ?, division_id = ?, team_id = ?, employee_id = ?,
+                        start_date = ?, due_date = ?, priority = ?, status = ?, bonus_type_id = ?, bonus_quantity = ?,
+                        admin_notes = ?, example_url = ?, example_file = ?, updated_at = datetime('now', 'localtime')
+                    WHERE id = ?
+                ");
+                $stmtUp->execute([
+                    $title, $description, $assignType, $divisionId, $teamId, $employeeId,
+                    $startDate, $dueDate, $priority, $status, $bonusTypeId, $bonusQuantity,
+                    $adminNotes, $exampleUrl, $fileToSave, $id
+                ]);
+
+                if (($oldTask['status'] ?? '') !== $status) {
+                    $stmtHist = $db->prepare("INSERT INTO task_history (task_id, user_id, old_status, new_status, notes) VALUES (?, ?, ?, ?, 'Status diubah saat edit tugas oleh Admin')");
+                    $stmtHist->execute([$id, $user['id'], $oldTask['status'], $status]);
+                }
+
+                $db->commit();
+                logAudit($user['id'], 'EDIT_TASK', 'Updated task ID ' . $id . ' - ' . $title);
+                setFlashMessage('success', 'Tugas "' . e($title) . '" berhasil diperbarui.');
+            } catch (Exception $e) {
+                if ($db->inTransaction()) $db->rollBack();
+                setFlashMessage('danger', 'Gagal memperbarui tugas: ' . $e->getMessage());
+            }
+        }
+        header('Location: ' . BASE_URL . '/tasks.php?id=' . $id);
+        exit;
+    }
+
+    // 3. DELETE TASK (Super Admin & Admin HR)
+    if ($action === 'delete_task') {
+        if (!hasPermission('manage_tasks')) {
+            setFlashMessage('danger', 'Anda tidak memiliki hak akses untuk menghapus tugas.');
+            header('Location: ' . BASE_URL . '/tasks.php');
+            exit;
+        }
+
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0) {
+            try {
+                $stmtT = $db->prepare("SELECT title FROM tasks WHERE id = ?");
+                $stmtT->execute([$id]);
+                $taskTitle = $stmtT->fetchColumn() ?: ('ID ' . $id);
+
+                $db->beginTransaction();
+                $db->prepare("DELETE FROM task_history WHERE task_id = ?")->execute([$id]);
+                $db->prepare("DELETE FROM task_comments WHERE task_id = ?")->execute([$id]);
+                $db->prepare("DELETE FROM employee_bonuses WHERE task_id = ?")->execute([$id]);
+                $db->prepare("DELETE FROM tasks WHERE id = ?")->execute([$id]);
+                $db->commit();
+
+                logAudit($user['id'], 'DELETE_TASK', 'Deleted task: ' . $taskTitle . ' (ID ' . $id . ')');
+                setFlashMessage('success', 'Tugas "' . e($taskTitle) . '" berhasil dihapus.');
+            } catch (Exception $e) {
+                if ($db->inTransaction()) $db->rollBack();
+                setFlashMessage('danger', 'Gagal menghapus tugas: ' . $e->getMessage());
+            }
+        }
+        header('Location: ' . BASE_URL . '/tasks.php');
+        exit;
+    }
+
+    // 4. UPDATE ADMIN GUIDELINES / EXAMPLES (Admin only)
     if ($action === 'update_guidelines') {
         if (!hasPermission('manage_tasks')) {
             setFlashMessage('danger', 'Anda tidak memiliki hak akses untuk mengedit instruksi tugas.');
@@ -630,6 +728,15 @@ function renderTaskCard($t, $selectedTaskId) {
             <button type="button" class="btn btn-xs btn-outline-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px;" onclick="event.preventDefault(); event.stopPropagation(); TaskChatEngine.openChat(<?= (int)$t['id'] ?>, <?= htmlspecialchars(json_encode($t['title']), ENT_QUOTES) ?>);" title="Chat / Diskusi Tugas">
               <i class="fa-solid fa-comments"></i>
             </button>
+
+            <?php if (hasPermission('manage_tasks')): ?>
+              <button type="button" class="btn btn-xs btn-outline-warning text-dark rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px;" onclick="event.preventDefault(); event.stopPropagation(); openEditTask(<?= htmlspecialchars(json_encode($t), ENT_QUOTES) ?>);" title="Edit Tugas">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button type="button" class="btn btn-xs btn-outline-danger rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px;" onclick="event.preventDefault(); event.stopPropagation(); confirmDeleteTask(<?= (int)$t['id'] ?>, <?= htmlspecialchars(json_encode($t['title']), ENT_QUOTES) ?>);" title="Hapus Tugas">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            <?php endif; ?>
 
             <a href="<?= BASE_URL ?>/tasks.php?id=<?= $t['id'] ?>" class="btn btn-xs btn-primary rounded-pill px-3 font-weight-bold">
               Detail
@@ -1731,7 +1838,15 @@ function renderTaskCard($t, $selectedTaskId) {
             <div class="card shadow-lg border-0 rounded-4" style="border: 1px solid #ebedf2 !important;">
               <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 border-bottom flex-wrap gap-2">
                 <h5 class="mb-0 font-weight-bold text-dark"><i class="fa-solid fa-clipboard-list text-primary me-2"></i> Detail Tugas</h5>
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <?php if (hasPermission('manage_tasks')): ?>
+                    <button type="button" class="btn btn-xs btn-outline-warning text-dark rounded-pill px-2.5 py-1 font-weight-bold shadow-sm d-flex align-items-center gap-1" onclick="openEditTask(<?= htmlspecialchars(json_encode($selectedTask), ENT_QUOTES) ?>);">
+                      <i class="fa-solid fa-pen"></i> Edit
+                    </button>
+                    <button type="button" class="btn btn-xs btn-outline-danger rounded-pill px-2.5 py-1 font-weight-bold shadow-sm d-flex align-items-center gap-1" onclick="confirmDeleteTask(<?= (int)$selectedTask['id'] ?>, <?= htmlspecialchars(json_encode($selectedTask['title']), ENT_QUOTES) ?>);">
+                      <i class="fa-solid fa-trash"></i> Hapus
+                    </button>
+                  <?php endif; ?>
                   <button type="button" class="btn btn-xs btn-primary rounded-pill px-3 py-1 font-weight-bold shadow-sm d-flex align-items-center gap-1.5" onclick="TaskChatEngine.openChat(<?= (int)$selectedTask['id'] ?>, <?= htmlspecialchars(json_encode($selectedTask['title']), ENT_QUOTES) ?>);">
                     <i class="fa-solid fa-comments text-warning"></i> Chat Diskusi
                     <span class="badge bg-danger rounded-pill d-none" id="taskDetailChatBadge">0</span>
@@ -2378,6 +2493,225 @@ function renderTaskCard($t, $selectedTaskId) {
                   </div>
                 </div>
               </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Edit Task (Super Admin & HR) -->
+    <div class="modal fade" id="editTaskModal" tabindex="-1">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-bottom">
+            <h5 class="modal-title font-weight-bold text-dark"><i class="fa-solid fa-pen-to-square me-2 text-warning"></i> Edit Tugas / To-Do List</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <form action="<?= BASE_URL ?>/tasks.php" method="POST" enctype="multipart/form-data">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="edit_task">
+            <input type="hidden" name="id" id="editTaskId">
+            <div class="modal-body p-4">
+              <!-- Wizard Tab Navigation Indicators -->
+              <ul class="nav nav-pills nav-justified mb-4 border-bottom pb-3" id="editTaskFormTabs" role="tablist" style="font-size: 0.85rem;">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link active font-weight-bold py-2 rounded-3" id="edit-task-step-1-tab" data-bs-toggle="pill" data-bs-target="#edit-task-step-1" type="button" role="tab">
+                    <i class="fa-solid fa-circle-info me-1.5"></i> 1. Informasi Tugas
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link font-weight-bold py-2 rounded-3" id="edit-task-step-2-tab" data-bs-toggle="pill" data-bs-target="#edit-task-step-2" type="button" role="tab">
+                    <i class="fa-solid fa-lightbulb me-1.5"></i> 2. Catatan &amp; Contoh Admin
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link font-weight-bold py-2 rounded-3" id="edit-task-step-3-tab" data-bs-toggle="pill" data-bs-target="#edit-task-step-3" type="button" role="tab">
+                    <i class="fa-solid fa-gift me-1.5"></i> 3. Status, Deadline &amp; Bonus
+                  </button>
+                </li>
+              </ul>
+
+              <div class="tab-content" id="editTaskFormTabsContent">
+                <!-- STEP 1: Core Task Info -->
+                <div class="tab-pane fade show active" id="edit-task-step-1" role="tabpanel">
+                  <div class="mb-3">
+                    <label class="form-label font-weight-bold">Judul Tugas <span class="text-danger">*</span></label>
+                    <input type="text" name="title" id="editTaskTitle" class="form-control" placeholder="Judul tugas..." required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label font-weight-bold">Deskripsi Tugas</label>
+                    <textarea name="description" id="editTaskDescription" class="form-control" rows="3" placeholder="Rincian instruksi tugas..."></textarea>
+                  </div>
+
+                  <div class="row">
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label font-weight-bold">Tipe Assignment</label>
+                      <select name="assign_type" id="editTaskAssignType" class="form-select form-control" required>
+                        <option value="employee">Perorangan Karyawan</option>
+                        <option value="team">Seluruh Tim</option>
+                        <option value="division">Seluruh Divisi</option>
+                      </select>
+                    </div>
+
+                    <!-- Assignment targets (swapped dynamically) -->
+                    <div class="col-md-8 mb-3" id="editAssignEmployeeContainer">
+                      <label class="form-label font-weight-bold">Pilih Karyawan</label>
+                      <select name="employee_id" id="editTaskEmployeeId" class="form-select form-control">
+                        <option value="">-- Pilih Karyawan --</option>
+                        <?php foreach ($allEmployees as $emp): ?>
+                          <option value="<?= $emp['id'] ?>"><?= e($emp['nik']) ?> - <?= e($emp['full_name']) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="col-md-8 mb-3 d-none" id="editAssignTeamContainer">
+                      <label class="form-label font-weight-bold">Pilih Tim</label>
+                      <select name="team_id" id="editTaskTeamId" class="form-select form-control">
+                        <option value="">-- Pilih Tim --</option>
+                        <?php foreach ($allTeams as $tm): ?>
+                          <option value="<?= $tm['id'] ?>"><?= e($tm['name']) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="col-md-8 mb-3 d-none" id="editAssignDivisionContainer">
+                      <label class="form-label font-weight-bold">Pilih Divisi</label>
+                      <select name="division_id" id="editTaskDivisionId" class="form-select form-control">
+                        <option value="">-- Pilih Divisi --</option>
+                        <?php foreach ($allDivisions as $div): ?>
+                          <option value="<?= $div['id'] ?>"><?= e($div['name']) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div class="d-flex justify-content-end mt-4 pt-3 border-top">
+                    <button type="button" class="btn btn-primary rounded-pill font-weight-bold btn-sm px-4" onclick="var t = new bootstrap.Tab(document.getElementById('edit-task-step-2-tab')); t.show();">
+                      Lanjut ke Catatan &amp; Contoh <i class="fa-solid fa-arrow-right ms-1"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- STEP 2: Admin Notes & Examples -->
+                <div class="tab-pane fade" id="edit-task-step-2" role="tabpanel">
+                  <div class="alert alert-info border-0 rounded-3 small mb-3">
+                    <i class="fa-solid fa-circle-info me-1"></i> Perbarui instruksi tambahan dan contoh referensi panduan tugas.
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label font-weight-bold">Catatan Khusus dari Super Admin (Opsional)</label>
+                    <textarea name="admin_notes" id="editTaskAdminNotes" class="form-control" rows="3" placeholder="Gunakan tanda - untuk daftar poin..."></textarea>
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label font-weight-bold">Link Contoh / Referensi / Figma / Repo (Opsional)</label>
+                    <input type="url" name="example_url" id="editTaskExampleUrl" class="form-control" placeholder="https://drive.google.com/...">
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label font-weight-bold">Upload / Ganti File Contoh Panduan (Opsional)</label>
+                    <input type="file" name="example_file" class="form-control">
+                    <div id="editTaskCurrentFile" class="mt-1 small text-muted"></div>
+                  </div>
+
+                  <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                    <button type="button" class="btn btn-secondary rounded-pill btn-sm px-4" onclick="var t = new bootstrap.Tab(document.getElementById('edit-task-step-1-tab')); t.show();">
+                      <i class="fa-solid fa-arrow-left me-1"></i> Kembali
+                    </button>
+                    <button type="button" class="btn btn-primary rounded-pill font-weight-bold btn-sm px-4" onclick="var t = new bootstrap.Tab(document.getElementById('edit-task-step-3-tab')); t.show();">
+                      Lanjut ke Status &amp; Deadline <i class="fa-solid fa-arrow-right ms-1"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- STEP 3: Dates, Priorities, Status & Bonuses -->
+                <div class="tab-pane fade" id="edit-task-step-3" role="tabpanel">
+                  <div class="row">
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label font-weight-bold">Tanggal Mulai</label>
+                      <input type="date" name="start_date" id="editTaskStartDate" class="form-control" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label font-weight-bold">Deadline Selesai</label>
+                      <input type="date" name="due_date" id="editTaskDueDate" class="form-control" required>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label font-weight-bold">Status Tugas</label>
+                      <select name="status" id="editTaskStatus" class="form-select form-control">
+                        <option value="pending">Belum Dikerjakan</option>
+                        <option value="in_progress">Sedang Dikerjakan</option>
+                        <option value="in_review">Menunggu Audit</option>
+                        <option value="completed">Selesai (Lolos Audit)</option>
+                        <option value="overdue">Terlambat</option>
+                        <option value="cancelled">Dibatalkan</option>
+                      </select>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label font-weight-bold">Prioritas</label>
+                      <select name="priority" id="editTaskPriority" class="form-select form-control">
+                        <option value="low">Rendah</option>
+                        <option value="normal">Normal</option>
+                        <option value="high">Tinggi</option>
+                        <option value="urgent">Urgent</option>
+                      </select>
+                    </div>
+
+                    <div class="col-md-8 mb-3">
+                      <label class="form-label font-weight-bold">Bonus Terkait (Opsional)</label>
+                      <select name="bonus_type_id" id="editTaskBonusTypeId" class="form-select form-control">
+                        <option value="">-- Tanpa Bonus --</option>
+                        <?php foreach ($allBonusTypes as $bt): ?>
+                          <option value="<?= $bt['id'] ?>"><?= e($bt['name']) ?> (<?= formatRupiah($bt['rate']) ?>)</option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                      <label class="form-label font-weight-bold">Qty Bonus</label>
+                      <input type="number" name="bonus_quantity" id="editTaskBonusQuantity" class="form-control" value="1" min="1">
+                    </div>
+                  </div>
+
+                  <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                    <button type="button" class="btn btn-secondary rounded-pill btn-sm px-4" onclick="var t = new bootstrap.Tab(document.getElementById('edit-task-step-2-tab')); t.show();">
+                      <i class="fa-solid fa-arrow-left me-1"></i> Kembali
+                    </button>
+                    <button type="submit" class="btn btn-warning text-dark rounded-pill font-weight-bold btn-sm px-4 shadow-sm">
+                      <i class="fa-solid fa-floppy-disk me-1"></i> Simpan Perubahan Tugas
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Delete Task Confirmation -->
+    <div class="modal fade" id="deleteTaskModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-bottom bg-danger-subtle py-3">
+            <h5 class="modal-title font-weight-bold text-danger fs-6"><i class="fa-solid fa-triangle-exclamation me-2"></i> Konfirmasi Hapus Tugas</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <form action="<?= BASE_URL ?>/tasks.php" method="POST">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="delete_task">
+            <input type="hidden" name="id" id="deleteTaskId">
+            <div class="modal-body p-4 text-center">
+              <div class="avatar-circle mx-auto mb-3 bg-danger text-white d-flex align-items-center justify-content-center" style="width: 54px; height: 54px; border-radius: 50%; font-size: 1.5rem;">
+                <i class="fa-solid fa-trash"></i>
+              </div>
+              <h6 class="font-weight-bold text-dark mb-2">Apakah Anda yakin ingin menghapus tugas ini?</h6>
+              <p class="text-muted small mb-0" id="deleteTaskTitleText">-</p>
+              <p class="text-danger small mt-2 mb-0 font-weight-bold">Peringatan: Seluruh riwayat dan komentar terkait tugas ini akan dihapus secara permanen.</p>
+            </div>
+            <div class="modal-footer py-2 px-4 border-top">
+              <button type="button" class="btn btn-sm btn-light rounded-pill px-4" data-bs-dismiss="modal">Batal</button>
+              <button type="submit" class="btn btn-sm btn-danger rounded-pill font-weight-bold px-4">Ya, Hapus Tugas</button>
             </div>
           </form>
         </div>
@@ -3463,8 +3797,79 @@ function renderTaskCard($t, $selectedTaskId) {
       });
     </script>
 
-    <!-- Script to toggle assignment inputs dynamically in modal -->
+    <!-- Script to toggle assignment inputs dynamically in modal & manage Edit / Delete -->
     <script>
+      function toggleEditAssignType(val) {
+          const empCont = document.getElementById('editAssignEmployeeContainer');
+          const teamCont = document.getElementById('editAssignTeamContainer');
+          const divCont = document.getElementById('editAssignDivisionContainer');
+          if (empCont) empCont.classList.toggle('d-none', val !== 'employee');
+          if (teamCont) teamCont.classList.toggle('d-none', val !== 'team');
+          if (divCont) divCont.classList.toggle('d-none', val !== 'division');
+      }
+
+      function openEditTask(t) {
+          if (!t) return;
+          document.getElementById('editTaskId').value = t.id || '';
+          document.getElementById('editTaskTitle').value = t.title || '';
+          document.getElementById('editTaskDescription').value = t.description || '';
+          
+          const assignType = t.assign_type || 'employee';
+          const assignTypeSel = document.getElementById('editTaskAssignType');
+          if (assignTypeSel) {
+              assignTypeSel.value = assignType;
+          }
+          toggleEditAssignType(assignType);
+
+          const empSel = document.getElementById('editTaskEmployeeId');
+          if (empSel) empSel.value = t.employee_id || '';
+
+          const teamSel = document.getElementById('editTaskTeamId');
+          if (teamSel) teamSel.value = t.team_id || '';
+
+          const divSel = document.getElementById('editTaskDivisionId');
+          if (divSel) divSel.value = t.division_id || '';
+
+          document.getElementById('editTaskAdminNotes').value = t.admin_notes || '';
+          document.getElementById('editTaskExampleUrl').value = t.example_url || '';
+          
+          const curFileDiv = document.getElementById('editTaskCurrentFile');
+          if (curFileDiv) {
+              if (t.example_file) {
+                  curFileDiv.innerHTML = '<span class="text-success"><i class="fa-solid fa-file me-1"></i> File saat ini: ' + escapeHtml(t.example_file.split('/').pop()) + '</span>';
+              } else {
+                  curFileDiv.innerHTML = '<span class="text-muted">Tidak ada file terlampir</span>';
+              }
+          }
+
+          document.getElementById('editTaskStartDate').value = t.start_date ? t.start_date.substring(0, 10) : '<?= date('Y-m-d') ?>';
+          document.getElementById('editTaskDueDate').value = t.due_date ? t.due_date.substring(0, 10) : '<?= date('Y-m-d') ?>';
+          document.getElementById('editTaskStatus').value = t.status || 'pending';
+          document.getElementById('editTaskPriority').value = t.priority || 'normal';
+
+          const bonusSel = document.getElementById('editTaskBonusTypeId');
+          if (bonusSel) bonusSel.value = t.bonus_type_id || '';
+
+          document.getElementById('editTaskBonusQuantity').value = t.bonus_quantity || 1;
+
+          // Switch to first tab in edit modal
+          const firstTab = document.getElementById('edit-task-step-1-tab');
+          if (firstTab && typeof bootstrap !== 'undefined') {
+              const tabInstance = bootstrap.Tab.getOrCreateInstance(firstTab);
+              tabInstance.show();
+          }
+
+          const modal = new bootstrap.Modal(document.getElementById('editTaskModal'));
+          modal.show();
+      }
+
+      function confirmDeleteTask(id, title) {
+          document.getElementById('deleteTaskId').value = id;
+          document.getElementById('deleteTaskTitleText').textContent = title || ('Tugas ID #' + id);
+          const modal = new bootstrap.Modal(document.getElementById('deleteTaskModal'));
+          modal.show();
+      }
+
       document.addEventListener('DOMContentLoaded', function() {
           const assignTypeSelect = document.getElementById('addTaskAssignType');
           if (assignTypeSelect) {
@@ -3473,6 +3878,13 @@ function renderTaskCard($t, $selectedTaskId) {
                   document.getElementById('assignEmployeeContainer').classList.toggle('d-none', val !== 'employee');
                   document.getElementById('assignTeamContainer').classList.toggle('d-none', val !== 'team');
                   document.getElementById('assignDivisionContainer').classList.toggle('d-none', val !== 'division');
+              });
+          }
+
+          const editAssignTypeSelect = document.getElementById('editTaskAssignType');
+          if (editAssignTypeSelect) {
+              editAssignTypeSelect.addEventListener('change', function() {
+                  toggleEditAssignType(this.value);
               });
           }
       });

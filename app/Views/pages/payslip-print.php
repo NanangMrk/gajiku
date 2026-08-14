@@ -43,6 +43,7 @@ $company = $db->query("SELECT * FROM company_settings WHERE id = 1")->fetch() ?:
 <html lang="id">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover">
   <title>SLIP GAJI - <?= e($payslip['payslip_number']) ?></title>
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/vendors/css/vendor.bundle.base.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">

@@ -14,7 +14,7 @@
         }
     }
   ?>
-  <div class="mobile-bottom-nav d-flex d-md-none no-print">
+  <div class="mobile-bottom-nav d-flex d-lg-none no-print">
     <a href="<?= BASE_URL ?>/dashboard.php" class="mobile-nav-item <?= isActiveMobileMenu('/dashboard.php', $uri) ?>">
       <i class="fa-solid fa-house"></i>
       <span>Beranda</span>
@@ -23,7 +23,7 @@
       <i class="fa-solid fa-file-invoice-dollar"></i>
       <span>Slip Gaji</span>
     </a>
-    <a href="#" class="mobile-nav-item center-fab" data-toggle="offcanvas" onclick="event.preventDefault();">
+    <a href="javascript:void(0)" class="mobile-nav-item center-fab" data-toggle="offcanvas" aria-label="Menu Lengkap">
       <i class="fa-solid fa-bars"></i>
       <span>Menu</span>
     </a>
@@ -36,6 +36,9 @@
       <span>Profil</span>
     </a>
   </div>
+
+  <!-- Sidebar Backdrop for Mobile -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
   </div>
   <!-- container-scroller -->
@@ -64,6 +67,17 @@
         // Android Hardware Back Button listener if running inside Capacitor APK
         if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
             window.Capacitor.Plugins.App.addListener('backButton', function() {
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar && sidebar.classList.contains('active')) {
+                    if (window.closeMobileSidebar) {
+                        window.closeMobileSidebar();
+                    } else {
+                        sidebar.classList.remove('active');
+                        const backdrop = document.getElementById('sidebarBackdrop');
+                        if (backdrop) backdrop.classList.remove('active');
+                    }
+                    return;
+                }
                 const currentPath = window.location.pathname;
                 if (currentPath.endsWith('/dashboard.php') || currentPath.endsWith('/login.php') || currentPath === '/' || currentPath === '') {
                     window.Capacitor.Plugins.App.minimizeApp();

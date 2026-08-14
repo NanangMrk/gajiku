@@ -17,7 +17,7 @@ $company = $db->query("SELECT * FROM company_settings WHERE id = 1")->fetch() ?:
 <html lang="id">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover">
   <title>Beranda - <?= e(APP_NAME) ?></title>
   
   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/vendors/css/vendor.bundle.base.css">

@@ -12,18 +12,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'update_profile') {
+        $username = trim($_POST['username'] ?? '');
+        $email = trim($_POST['email'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $address = trim($_POST['address'] ?? '');
         $bankName = trim($_POST['bank_name'] ?? '');
         $accountNumber = trim($_POST['account_number'] ?? '');
 
-        if ($user['employee_id']) {
-            $stmt = $db->prepare("UPDATE employees SET phone = ?, address = ?, bank_name = ?, account_number = ?, updated_at = datetime('now', 'localtime') WHERE id = ?");
-            $stmt->execute([$phone, $address, $bankName, $accountNumber, $user['employee_id']]);
-            logAudit($user['id'], 'UPDATE_PROFILE', 'Updated profile contact info');
-            setFlashMessage('success', 'Informasi profil berhasil diperbarui.');
-        } else {
-            setFlashMessage('warning', 'Profil pengguna ini tidak terhubung dengan data karyawan.');
+        if (empty($username) || empty($email)) {
+            setFlashMessage('danger', 'Username dan Email wajib diisi.');
+            header('Location: ' . BASE_URL . '/profile.php');
+            exit;
+        }
+
+        try {
+            // Check username uniqueness
+            $stmtUniq = $db->prepare("SELECT COUNT(*) FROM users WHERE username = ? AND id != ?");
+            $stmtUniq->execute([$username, $user['id']]);
+            if ((int)$stmtUniq->fetchColumn() > 0) {
+                throw new Exception('Username sudah digunakan oleh akun lain.');
+            }
+
+            $db->beginTransaction();
+
+            $stmtUser = $db->prepare("UPDATE users SET username = ?, email = ?, updated_at = datetime('now', 'localtime') WHERE id = ?");
+            $stmtUser->execute([$username, $email, $user['id']]);
+
+            $_SESSION['auth_user']['username'] = $username;
+            $_SESSION['auth_user']['email'] = $email;
+
+            if ($user['employee_id']) {
+                $stmtEmp = $db->prepare("UPDATE employees SET email = ?, phone = ?, address = ?, bank_name = ?, account_number = ?, updated_at = datetime('now', 'localtime') WHERE id = ?");
+                $stmtEmp->execute([$email, $phone, $address, $bankName, $accountNumber, $user['employee_id']]);
+            }
+
+            $db->commit();
+            logAudit($user['id'], 'UPDATE_PROFILE', 'Updated profile & credentials');
+            setFlashMessage('success', 'Informasi profil & akun berhasil diperbarui.');
+        } catch (Exception $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            setFlashMessage('danger', 'Gagal memperbarui profil: ' . $e->getMessage());
         }
         header('Location: ' . BASE_URL . '/profile.php');
         exit;
@@ -138,6 +166,14 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                     
                     <div class="row">
                       <div class="col-md-6 mb-3">
+                        <label class="form-label font-weight-bold">Username <span class="text-danger">*</span></label>
+                        <input type="text" name="username" class="form-control" value="<?= e($user['username'] ?? '') ?>" required>
+                      </div>
+                      <div class="col-md-6 mb-3">
+                        <label class="form-label font-weight-bold">Alamat Email <span class="text-danger">*</span></label>
+                        <input type="email" name="email" class="form-control" value="<?= e($user['email'] ?? '') ?>" required>
+                      </div>
+                      <div class="col-md-6 mb-3">
                         <label class="form-label font-weight-bold">Nomor Telepon</label>
                         <input type="text" name="phone" class="form-control" value="<?= e($user['phone'] ?? '') ?>">
                       </div>
@@ -145,7 +181,7 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                         <label class="form-label font-weight-bold">Nama Bank</label>
                         <input type="text" name="bank_name" class="form-control" value="<?= e($user['bank_name'] ?? '') ?>">
                       </div>
-                      <div class="col-md-6 mb-3">
+                      <div class="col-md-12 mb-3">
                         <label class="form-label font-weight-bold">Nomor Rekening</label>
                         <input type="text" name="account_number" class="form-control" value="<?= e($user['account_number'] ?? '') ?>">
                       </div>

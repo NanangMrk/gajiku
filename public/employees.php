@@ -127,6 +127,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'edit_superadmin_credentials') {
+        $adminUserId = (int)($_POST['user_id'] ?? 0);
+        $newUsername = trim($_POST['username'] ?? '');
+        $newEmail = trim($_POST['email'] ?? '');
+        $newPassword = $_POST['new_password'] ?? '';
+
+        if ($adminUserId > 0 && !empty($newUsername) && !empty($newEmail)) {
+            try {
+                // Verify that the target user is indeed a Super Admin
+                $stmtCheck = $db->prepare("SELECT u.*, r.slug as role_slug FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?");
+                $stmtCheck->execute([$adminUserId]);
+                $targetAdmin = $stmtCheck->fetch();
+
+                if (!$targetAdmin || ($targetAdmin['role_slug'] !== 'super_admin' && (int)$targetAdmin['role_id'] !== 1)) {
+                    throw new Exception('Pengguna yang dipilih bukan akun Super Admin.');
+                }
+
+                // Check username uniqueness
+                $stmtUniq = $db->prepare("SELECT COUNT(*) FROM users WHERE username = ? AND id != ?");
+                $stmtUniq->execute([$newUsername, $adminUserId]);
+                if ((int)$stmtUniq->fetchColumn() > 0) {
+                    throw new Exception('Username sudah digunakan oleh akun lain.');
+                }
+
+                $db->beginTransaction();
+
+                if (!empty($newPassword)) {
+                    if (strlen($newPassword) < 6) {
+                        throw new Exception('Password baru minimal 6 karakter.');
+                    }
+                    $passHash = password_hash($newPassword, PASSWORD_BCRYPT);
+                    $stmtUp = $db->prepare("UPDATE users SET username = ?, email = ?, password_hash = ? WHERE id = ?");
+                    $stmtUp->execute([$newUsername, $newEmail, $passHash, $adminUserId]);
+                } else {
+                    $stmtUp = $db->prepare("UPDATE users SET username = ?, email = ? WHERE id = ?");
+                    $stmtUp->execute([$newUsername, $newEmail, $adminUserId]);
+                }
+
+                // If current logged-in user is this super admin, update session
+                if ((int)$user['id'] === $adminUserId) {
+                    $_SESSION['auth_user']['username'] = $newUsername;
+                    $_SESSION['auth_user']['email'] = $newEmail;
+                }
+
+                $db->commit();
+                logAudit($user['id'], 'UPDATE_SUPERADMIN_CREDENTIALS', 'Updated Super Admin credentials for User ID ' . $adminUserId . ' (' . $newUsername . ')');
+                setFlashMessage('success', 'Kredensial akun Super Admin (' . e($newUsername) . ') berhasil diperbarui.');
+            } catch (Exception $e) {
+                if ($db->inTransaction()) $db->rollBack();
+                setFlashMessage('danger', 'Gagal memperbarui kredensial Super Admin: ' . $e->getMessage());
+            }
+        }
+        header('Location: ' . BASE_URL . '/employees.php');
+        exit;
+    }
+
     if ($action === 'delete_employee') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) {
@@ -244,6 +300,7 @@ $employees = $stmt->fetchAll();
 
 $divisions = $db->query("SELECT * FROM divisions WHERE status = 'active' ORDER BY name ASC")->fetchAll();
 $teams = $db->query("SELECT * FROM teams WHERE status = 'active' ORDER BY name ASC")->fetchAll();
+$superAdmins = $db->query("SELECT u.id, u.username, u.email, u.status, u.created_at, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE r.slug = 'super_admin' OR u.role_id = 1 ORDER BY u.id ASC")->fetchAll();
 
 $selectedEmployee = null;
 $salaryHistories = [];
@@ -337,19 +394,25 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
       <?php endif; ?>
 
       <!-- Header Title -->
-      <div class="d-flex justify-content-between align-items-center mb-4">
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
         <div>
           <h3 class="font-weight-bold mb-0">Kelola Karyawan</h3>
           <p class="text-muted mb-0">Manajemen data SDM, pengaturan divisi, dan riwayat gaji pokok</p>
         </div>
-        <!-- Desktop Add Button -->
-        <button class="btn btn-primary rounded-pill font-weight-bold px-4 shadow-sm d-none d-md-block" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
-          <i class="fa-solid fa-user-plus me-1"></i> Tambah Karyawan Baru
-        </button>
+        <div class="d-flex align-items-center gap-2 flex-wrap w-100 w-md-auto justify-content-start justify-content-md-end">
+          <!-- Super Admin Credentials Modal Trigger Button -->
+          <button class="btn btn-outline-primary rounded-pill font-weight-bold px-3.5 shadow-sm" data-bs-toggle="modal" data-bs-target="#superAdminModal">
+            <i class="fa-solid fa-shield-halved me-1 text-primary"></i> Akun Super Admin
+          </button>
+          <!-- Desktop Add Button -->
+          <button class="btn btn-primary rounded-pill font-weight-bold px-4 shadow-sm d-none d-md-block" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+            <i class="fa-solid fa-user-plus me-1"></i> Tambah Karyawan Baru
+          </button>
+        </div>
         
         <!-- Mobile FAB Button -->
-        <button type="button" class="btn btn-primary d-md-none position-fixed rounded-circle shadow-lg d-flex align-items-center justify-content-center no-print" data-bs-toggle="modal" data-bs-target="#addEmployeeModal" style="bottom: 80px; right: 20px; width: 52px; height: 52px; z-index: 1040; background: linear-gradient(135deg, #4B49AC 0%, #6366f1 100%); border: none; box-shadow: 0 4px 16px rgba(75, 73, 172, 0.45) !important;">
-          <i class="fa-solid fa-plus fs-3 text-white"></i>
+        <button type="button" class="btn btn-primary d-md-none position-fixed rounded-circle shadow-lg d-flex align-items-center justify-content-center no-print" data-bs-toggle="modal" data-bs-target="#addEmployeeModal" style="bottom: calc(75px + env(safe-area-inset-bottom, 0px)); right: 18px; width: 50px; height: 50px; z-index: 1035; background: linear-gradient(135deg, #4B49AC 0%, #6366f1 100%); border: none; box-shadow: 0 4px 16px rgba(75, 73, 172, 0.45) !important;" aria-label="Tambah Karyawan">
+          <i class="fa-solid fa-plus fs-4 text-white"></i>
         </button>
       </div>
 
@@ -357,10 +420,10 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
       <div class="card shadow-sm border-0 rounded-4 mb-4">
         <div class="card-body py-3">
           <form action="<?= BASE_URL ?>/employees.php" method="GET" class="row g-2 align-items-center">
-            <div class="col-md-4">
+            <div class="col-12 col-md-4">
               <input type="text" name="search" class="form-control form-control-sm rounded-3" placeholder="Cari NIK, Nama, Email..." value="<?= e($search) ?>">
             </div>
-            <div class="col-md-5">
+            <div class="col-8 col-md-5">
               <select name="division_id" class="form-select form-control form-control-sm rounded-3">
                 <option value="">-- Semua Divisi --</option>
                 <?php foreach ($divisions as $d): ?>
@@ -368,7 +431,7 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                 <?php endforeach; ?>
               </select>
             </div>
-            <div class="col-md-3 d-flex gap-2">
+            <div class="col-4 col-md-3 d-flex gap-2">
               <button type="submit" class="btn btn-sm btn-primary w-100 rounded-pill font-weight-bold"><i class="fa-solid fa-filter me-1"></i> Filter</button>
               <a href="<?= BASE_URL ?>/employees.php" class="btn btn-sm btn-light rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;"><i class="fa-solid fa-rotate-right"></i></a>
             </div>
@@ -796,6 +859,98 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
               <button type="submit" class="btn btn-sm btn-success rounded-pill font-weight-bold px-4">Simpan Histori Gaji</button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Super Admin Credentials Management -->
+    <div class="modal fade" id="superAdminModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+          <div class="modal-header border-bottom py-3 px-4" style="background: linear-gradient(135deg, #4B49AC0A, #6366f10A);">
+            <div class="d-flex align-items-center gap-2">
+              <div class="bg-primary text-white rounded-3 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                <i class="fa-solid fa-shield-halved fs-5"></i>
+              </div>
+              <div>
+                <h5 class="modal-title font-weight-bold text-dark mb-0 fs-6">Kredensial Akun Super Admin</h5>
+                <small class="text-muted">Kelola username dan password akun pengelola sistem utama (Non-Karyawan)</small>
+              </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+          </div>
+          <div class="modal-body p-3 p-md-4">
+            <div class="alert alert-info py-2.5 px-3 border-0 rounded-3 mb-4 d-flex align-items-start gap-2" style="background-color: #ebf5ff; color: #1e3a8a;">
+              <i class="fa-solid fa-circle-info fs-5 mt-0.5 text-primary"></i>
+              <div class="small">
+                <strong>Catatan Sistem:</strong> Akun Super Admin tidak tercatat sebagai karyawan biasa (tidak masuk slip gaji / payroll). Anda dapat mengubah <strong>Username</strong>, <strong>Email</strong>, dan <strong>Password</strong> akun di bawah ini.
+              </div>
+            </div>
+
+            <?php if (empty($superAdmins)): ?>
+              <div class="text-center py-4 text-muted">
+                Tidak ada akun Super Admin terdaftar.
+              </div>
+            <?php else: ?>
+              <div class="row g-3">
+                <?php foreach ($superAdmins as $sAdmin): ?>
+                  <div class="col-12">
+                    <div class="card border rounded-4 shadow-none p-3" style="background-color: #fafbfc;">
+                      <form action="<?= BASE_URL ?>/employees.php" method="POST">
+                        <?= csrfField() ?>
+                        <input type="hidden" name="action" value="edit_superadmin_credentials">
+                        <input type="hidden" name="user_id" value="<?= $sAdmin['id'] ?>">
+
+                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                          <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-primary px-3 py-1.5 rounded-pill font-weight-bold"><i class="fa-solid fa-crown me-1"></i> <?= e($sAdmin['role_name']) ?></span>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill small">ID #<?= $sAdmin['id'] ?></span>
+                          </div>
+                          <small class="text-muted">Dibuat: <?= formatTanggalIndo(date('Y-m-d', strtotime($sAdmin['created_at'] ?? 'now'))) ?></small>
+                        </div>
+
+                        <div class="row g-3">
+                          <div class="col-md-4">
+                            <label class="form-label small font-weight-bold mb-1">Username <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-sm">
+                              <span class="input-group-text bg-white"><i class="fa-solid fa-user text-muted"></i></span>
+                              <input type="text" name="username" class="form-control" value="<?= e($sAdmin['username']) ?>" required placeholder="Username Super Admin">
+                            </div>
+                          </div>
+
+                          <div class="col-md-4">
+                            <label class="form-label small font-weight-bold mb-1">Email <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-sm">
+                              <span class="input-group-text bg-white"><i class="fa-solid fa-envelope text-muted"></i></span>
+                              <input type="email" name="email" class="form-control" value="<?= e($sAdmin['email']) ?>" required placeholder="Email Super Admin">
+                            </div>
+                          </div>
+
+                          <div class="col-md-4">
+                            <label class="form-label small font-weight-bold mb-1">Password Baru</label>
+                            <div class="input-group input-group-sm">
+                              <span class="input-group-text bg-white"><i class="fa-solid fa-lock text-muted"></i></span>
+                              <input type="password" name="new_password" class="form-control" placeholder="Kosongkan jika tetap">
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="text-end mt-3">
+                          <button type="submit" class="btn btn-sm btn-primary rounded-pill font-weight-bold px-3">
+                            <i class="fa-solid fa-floppy-disk me-1"></i> Simpan Perubahan Akun #<?= $sAdmin['id'] ?>
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
+
+          </div>
+          <div class="modal-footer py-2 px-4 border-top">
+            <button type="button" class="btn btn-sm btn-light rounded-pill px-4" data-bs-dismiss="modal">Tutup</button>
+          </div>
         </div>
       </div>
     </div>

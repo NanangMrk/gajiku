@@ -136,14 +136,14 @@ $divColors = ['#4B49AC', '#7978E9', '#059669', '#0EA5E9', '#F59E0B', '#EF4444', 
         </button>
         
         <!-- Mobile FAB Button -->
-        <button type="button" class="btn btn-primary d-md-none position-fixed rounded-circle shadow-lg d-flex align-items-center justify-content-center no-print" data-bs-toggle="modal" data-bs-target="#addDivisionModal" style="bottom: 80px; right: 20px; width: 52px; height: 52px; z-index: 1040; background: linear-gradient(135deg, #4B49AC 0%, #6366f1 100%); border: none; box-shadow: 0 4px 16px rgba(75, 73, 172, 0.45) !important;">
-          <i class="fa-solid fa-plus fs-3 text-white"></i>
+        <button type="button" class="btn btn-primary d-md-none position-fixed rounded-circle shadow-lg d-flex align-items-center justify-content-center no-print" data-bs-toggle="modal" data-bs-target="#addDivisionModal" style="bottom: calc(75px + env(safe-area-inset-bottom, 0px)); right: 18px; width: 50px; height: 50px; z-index: 1035; background: linear-gradient(135deg, #4B49AC 0%, #6366f1 100%); border: none; box-shadow: 0 4px 16px rgba(75, 73, 172, 0.45) !important;" aria-label="Tambah Divisi">
+          <i class="fa-solid fa-plus fs-4 text-white"></i>
         </button>
       </div>
 
       <!-- Summary Stats -->
-      <div class="row mb-4">
-        <div class="col-md-4 mb-3 mb-md-0">
+      <div class="row g-2 g-md-3 mb-4">
+        <div class="col-12 col-md-4">
           <div class="card border-0 rounded-4 shadow-sm h-100">
             <div class="card-body d-flex align-items-center py-3">
               <div class="rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; background: linear-gradient(135deg, #4B49AC, #7978E9);">
@@ -156,23 +156,23 @@ $divColors = ['#4B49AC', '#7978E9', '#059669', '#0EA5E9', '#F59E0B', '#EF4444', 
             </div>
           </div>
         </div>
-        <div class="col-md-4 mb-3 mb-md-0">
+        <div class="col-6 col-md-4">
           <div class="card border-0 rounded-4 shadow-sm h-100">
             <div class="card-body d-flex align-items-center py-3">
-              <div class="rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; background: linear-gradient(135deg, #059669, #34D399);">
+              <div class="rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; background: linear-gradient(135deg, #059669, #10B981);">
                 <i class="fa-solid fa-users text-white"></i>
               </div>
               <div>
-                <p class="text-muted mb-0" style="font-size: 0.78rem;">Total Karyawan</p>
+                <p class="text-muted mb-0" style="font-size: 0.78rem;">Total Anggota</p>
                 <h4 class="font-weight-bold mb-0"><?= $totalMembers ?></h4>
               </div>
             </div>
           </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-6 col-md-4">
           <div class="card border-0 rounded-4 shadow-sm h-100">
             <div class="card-body d-flex align-items-center py-3">
-              <div class="rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; background: linear-gradient(135deg, #0EA5E9, #67E8F9);">
+              <div class="rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; background: linear-gradient(135deg, #0EA5E9, #38BDF8);">
                 <i class="fa-solid fa-people-group text-white"></i>
               </div>
               <div>
@@ -181,7 +181,6 @@ $divColors = ['#4B49AC', '#7978E9', '#059669', '#0EA5E9', '#F59E0B', '#EF4444', 
               </div>
             </div>
           </div>
-        </div>
       </div>
 
       <!-- Division Cards Grid -->
