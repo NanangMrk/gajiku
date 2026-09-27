@@ -34,12 +34,37 @@ $permissions = [
     ['View Own Payslip', 'view_own_payslip', 'Payslip'],
     ['Manage Settings', 'manage_settings', 'Setting'],
     ['Backup System', 'backup_system', 'Setting'],
-    ['View Audit Log', 'view_audit_log', 'Audit']
+    ['View Audit Log', 'view_audit_log', 'Audit'],
+    ['Manage Payroll Proposals', 'manage_proposals', 'Payroll']
 ];
 
 $stmtPerm = $db->prepare("INSERT OR IGNORE INTO permissions (id, name, slug, category) VALUES (?, ?, ?, ?)");
 foreach ($permissions as $idx => $p) {
     $stmtPerm->execute([$idx + 1, $p[0], $p[1], $p[2]]);
+}
+
+// 2b. Seed Role Permissions (admin_hr & employee)
+$stmtRolePerm = $db->prepare("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)");
+$permSlugs = array_column($permissions, 1);
+$hrPermSlugs = [
+    'manage_users', 'manage_employees', 'manage_divisions', 'manage_teams', 
+    'manage_tasks', 'manage_bonus_types', 'request_bonus', 'approve_bonus', 
+    'manage_deductions', 'process_payroll', 'view_all_payslips', 'view_audit_log',
+    'manage_proposals'
+];
+foreach ($hrPermSlugs as $slug) {
+    $permId = array_search($slug, $permSlugs);
+    if ($permId !== false) {
+        $stmtRolePerm->execute([2, $permId + 1]);
+    }
+}
+// Employee permissions
+$empPermSlugs = ['view_own_payslip', 'request_bonus'];
+foreach ($empPermSlugs as $slug) {
+    $permId = array_search($slug, $permSlugs);
+    if ($permId !== false) {
+        $stmtRolePerm->execute([3, $permId + 1]);
+    }
 }
 
 // 3. Seed Users

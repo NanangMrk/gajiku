@@ -239,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 3. DELETE TASK (Super Admin & Admin HR)
     if ($action === 'delete_task') {
-        if (!hasPermission('manage_tasks')) {
+        if (!hasPermission('manage_tasks') && ($user['role_slug'] ?? '') !== 'super_admin' && ($user['role_slug'] ?? '') !== 'admin_hr') {
             setFlashMessage('danger', 'Anda tidak memiliki hak akses untuk menghapus tugas.');
             header('Location: ' . BASE_URL . '/tasks.php');
             exit;
@@ -248,15 +248,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) {
             try {
-                $stmtT = $db->prepare("SELECT title FROM tasks WHERE id = ?");
+                $stmtT = $db->prepare("SELECT title, example_file, submission_file FROM tasks WHERE id = ?");
                 $stmtT->execute([$id]);
-                $taskTitle = $stmtT->fetchColumn() ?: ('ID ' . $id);
+                $taskData = $stmtT->fetch();
+                $taskTitle = $taskData['title'] ?? ('ID ' . $id);
 
                 $db->beginTransaction();
+
+                // 1. Hapus file fisik contoh & hasil submission jika ada
+                if (!empty($taskData['example_file'])) {
+                    $f = ROOT_PATH . '/public' . $taskData['example_file'];
+                    if (is_file($f)) @unlink($f);
+                }
+                if (!empty($taskData['submission_file'])) {
+                    $f = ROOT_PATH . '/public' . $taskData['submission_file'];
+                    if (is_file($f)) @unlink($f);
+                }
+
+                // 2. Hapus file lampiran & data lampiran (task_attachments)
+                $stmtAtt = $db->prepare("SELECT file_path FROM task_attachments WHERE task_id = ?");
+                $stmtAtt->execute([$id]);
+                $attachments = $stmtAtt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+                foreach ($attachments as $att) {
+                    $f = ROOT_PATH . '/public' . $att;
+                    if (is_file($f)) @unlink($f);
+                }
+                $db->prepare("DELETE FROM task_attachments WHERE task_id = ?")->execute([$id]);
+
+                // 3. Hapus lampiran chat & data percakapan (task_chats)
+                $stmtChats = $db->prepare("SELECT attachment FROM task_chats WHERE task_id = ? AND attachment IS NOT NULL AND attachment != ''");
+                $stmtChats->execute([$id]);
+                $chatAtts = $stmtChats->fetchAll(PDO::FETCH_COLUMN) ?: [];
+                foreach ($chatAtts as $cAtt) {
+                    $f = ROOT_PATH . '/public' . $cAtt;
+                    if (is_file($f)) @unlink($f);
+                }
+                $db->prepare("DELETE FROM task_chats WHERE task_id = ?")->execute([$id]);
+
+                // 4. Hapus riwayat & penugasan tugas
+                $db->prepare("DELETE FROM task_assignments WHERE task_id = ?")->execute([$id]);
                 $db->prepare("DELETE FROM task_history WHERE task_id = ?")->execute([$id]);
-                $db->prepare("DELETE FROM task_comments WHERE task_id = ?")->execute([$id]);
-                $db->prepare("DELETE FROM employee_bonuses WHERE task_id = ?")->execute([$id]);
+
+                // 5. Hapus transaksi bonus terkait tugas ini
+                $db->prepare("DELETE FROM bonus_transactions WHERE task_id = ?")->execute([$id]);
+
+                // 6. Hapus tugas dari tabel utama
                 $db->prepare("DELETE FROM tasks WHERE id = ?")->execute([$id]);
+
                 $db->commit();
 
                 logAudit($user['id'], 'DELETE_TASK', 'Deleted task: ' . $taskTitle . ' (ID ' . $id . ')');

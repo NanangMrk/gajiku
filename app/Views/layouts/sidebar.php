@@ -74,6 +74,28 @@ function isActiveMenu(string $path, string $uri): string {
       </li>
     <?php endif; ?>
 
+    <!-- Payroll Proposals (Lisa PA Approval) -->
+    <?php if (hasPermission('manage_proposals') || hasPermission('process_payroll')): ?>
+      <?php
+        $sidebarPendingCount = 0;
+        try {
+            $sidebarDb = getDbConnection();
+            $sidebarPendingCount = (int)$sidebarDb->query("SELECT COUNT(*) FROM payroll_change_proposals WHERE status = 'pending'")->fetchColumn();
+        } catch (\Throwable $e) {}
+      ?>
+      <li class="nav-item <?= isActiveMenu('/proposals.php', $uri) ?>">
+        <a class="nav-link d-flex align-items-center justify-content-between" href="<?= BASE_URL ?>/proposals.php">
+          <div class="d-flex align-items-center">
+            <i class="fa-solid fa-clipboard-check menu-icon"></i>
+            <span class="menu-title">Persetujuan Lisa</span>
+          </div>
+          <?php if ($sidebarPendingCount > 0): ?>
+            <span class="badge bg-danger rounded-pill text-white fw-bold px-2 py-1" style="font-size: 0.72rem;"><?= $sidebarPendingCount ?></span>
+          <?php endif; ?>
+        </a>
+      </li>
+    <?php endif; ?>
+
     <!-- Payslips -->
     <li class="nav-item <?= isActiveMenu('/payslips.php', $uri) ?>">
       <a class="nav-link" href="<?= BASE_URL ?>/payslips.php">

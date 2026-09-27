@@ -21,6 +21,11 @@ function csrfField(): string {
     return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($token, ENT_QUOTES, 'UTF-8') . '">';
 }
 
+function getCsrfField(): string {
+    return csrfField();
+}
+
+
 function requireCsrf(): void {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;

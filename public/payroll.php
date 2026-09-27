@@ -37,6 +37,187 @@ function isTeamItem($db, $name, $type) {
     return false;
 }
 
+/**
+ * Inkremental Non-Destructive Sync:
+ * Menambahkan aturan bonus & potongan baru ke periode payroll draft/review
+ * TANPA menghapus atau mengubah input yang sudah disimpan.
+ */
+function syncPayrollRules(PDO $db, int $periodId, array $period): int {
+    $addedCount = 0;
+    try {
+        $db->beginTransaction();
+
+        // 1. Sinkronisasi Karyawan Baru (jika ada karyawan aktif yang belum terdaftar di periode ini)
+        $stmtPayrolls = $db->prepare("SELECT employee_id FROM payrolls WHERE payroll_period_id = ?");
+        $stmtPayrolls->execute([$periodId]);
+        $existingEmpIds = $stmtPayrolls->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+        $stmtEmployees = $db->query("
+            SELECT e.*, d.name as division_name, t.name as team_name
+            FROM employees e
+            LEFT JOIN divisions d ON e.division_id = d.id
+            LEFT JOIN teams t ON e.team_id = t.id
+            LEFT JOIN users u ON e.user_id = u.id
+            LEFT JOIN roles r ON u.role_id = r.id
+            WHERE e.status = 'active' AND (r.slug IS NULL OR r.slug != 'super_admin')
+        ");
+        $allEmployees = $stmtEmployees->fetchAll() ?: [];
+
+        $yearMonth = date('Y/m', strtotime($period['end_date']));
+        $prefix = "SLIP/" . $yearMonth . "/";
+
+        $stmtMax = $db->prepare("SELECT payslip_number FROM payrolls WHERE payslip_number LIKE ? ORDER BY id DESC LIMIT 1");
+        $stmtMax->execute([$prefix . '%']);
+        $lastSlip = $stmtMax->fetchColumn();
+        $counter = 1;
+        if ($lastSlip) {
+            $parts = explode('/', $lastSlip);
+            $lastCounter = (int)end($parts);
+            $counter = $lastCounter + 1;
+        }
+
+        foreach ($allEmployees as $emp) {
+            $empId = (int)$emp['id'];
+            if (!in_array($empId, $existingEmpIds)) {
+                $stmtSal = $db->prepare("
+                    SELECT basic_salary FROM salary_history 
+                    WHERE employee_id = ? AND effective_date <= ? 
+                    ORDER BY effective_date DESC, id DESC LIMIT 1
+                ");
+                $stmtSal->execute([$empId, $period['end_date']]);
+                $basicSalary = (float)($stmtSal->fetchColumn() ?: 0);
+
+                $payslipNumber = sprintf("SLIP/%s/%05d", $yearMonth, $counter++);
+
+                $stmtInsPay = $db->prepare("
+                    INSERT INTO payrolls (payroll_period_id, employee_id, nik_snapshot, employee_name_snapshot, division_snapshot, team_snapshot, position_snapshot, basic_salary, total_individual_bonus, total_team_bonus, total_adjustments, total_deductions, take_home_pay, payslip_number)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?)
+                ");
+                $stmtInsPay->execute([
+                    $periodId, $empId, $emp['nik'], $emp['full_name'], $emp['division_name'], $emp['team_name'], $emp['position'],
+                    $basicSalary, $basicSalary, $payslipNumber
+                ]);
+                $newPayrollId = (int)$db->lastInsertId();
+
+                $db->prepare("INSERT INTO payroll_items (payroll_id, type, name, amount, qty, notes) VALUES (?, 'basic', 'Gaji Pokok', ?, 1, 'Gaji Pokok Periode')")
+                   ->execute([$newPayrollId, $basicSalary]);
+                
+                $addedCount++;
+            }
+        }
+
+        // 2. Sinkronisasi Aturan Bonus & Potongan Baru untuk SEMUA karyawan di periode ini
+        $stmtCurrentPayrolls = $db->prepare("
+            SELECT p.id as payroll_id, p.employee_id, e.division_id 
+            FROM payrolls p
+            LEFT JOIN employees e ON p.employee_id = e.id
+            WHERE p.payroll_period_id = ?
+        ");
+        $stmtCurrentPayrolls->execute([$periodId]);
+        $currentPayrolls = $stmtCurrentPayrolls->fetchAll() ?: [];
+
+        $stmtExistingItems = $db->prepare("SELECT name, qty, id FROM payroll_items WHERE payroll_id = ? AND type = ?");
+        $stmtInsItem = $db->prepare("INSERT INTO payroll_items (payroll_id, type, name, amount, qty, notes) VALUES (?, ?, ?, 0, 0, ?)");
+        $stmtUpdateRate = $db->prepare("UPDATE payroll_items SET notes = ? WHERE id = ? AND qty = 0");
+
+        foreach ($currentPayrolls as $cp) {
+            $pId = (int)$cp['payroll_id'];
+            $divId = $cp['division_id'] !== null ? (int)$cp['division_id'] : null;
+
+            // --- A. BONUS ---
+            $stmtExistingItems->execute([$pId, 'individual_bonus']);
+            $existingBonusRows = $stmtExistingItems->fetchAll() ?: [];
+            $existingBonusMap = [];
+            foreach ($existingBonusRows as $row) {
+                $existingBonusMap[$row['name']] = $row;
+            }
+
+            if ($divId !== null) {
+                $stmtBonus = $db->prepare("SELECT * FROM bonus_types WHERE (division_id = ? OR division_id IS NULL) AND status = 'active'");
+                $stmtBonus->execute([$divId]);
+            } else {
+                $stmtBonus = $db->query("SELECT * FROM bonus_types WHERE division_id IS NULL AND status = 'active'");
+            }
+            $activeBonusTypes = $stmtBonus->fetchAll() ?: [];
+
+            foreach ($activeBonusTypes as $bt) {
+                $bName = $bt['name'];
+                $rate = (float)$bt['rate'];
+                if ($bt['calculation_method'] === 'team' && $divId !== null) {
+                    $stmtCount = $db->prepare("SELECT COUNT(*) FROM employees e LEFT JOIN users u ON e.user_id = u.id WHERE e.division_id = ? AND e.status = 'active' AND (u.role_id IS NULL OR u.role_id != 1)");
+                    $stmtCount->execute([$divId]);
+                    $divCount = (int)$stmtCount->fetchColumn();
+                    if ($divCount > 0) {
+                        $rate = $rate / $divCount;
+                    }
+                }
+
+                if (!isset($existingBonusMap[$bName])) {
+                    // Aturan baru: Sisipkan aman dengan qty = 0
+                    $stmtInsItem->execute([$pId, 'individual_bonus', $bName, (string)$rate]);
+                    $addedCount++;
+                } else {
+                    // Update tarif jika qty masih 0 dan tarif master berubah
+                    $existingItem = $existingBonusMap[$bName];
+                    if ((int)$existingItem['qty'] === 0) {
+                        $stmtUpdateRate->execute([(string)$rate, $existingItem['id']]);
+                    }
+                }
+            }
+
+            // --- B. POTONGAN ---
+            $stmtExistingItems->execute([$pId, 'deduction']);
+            $existingDeductRows = $stmtExistingItems->fetchAll() ?: [];
+            $existingDeductMap = [];
+            foreach ($existingDeductRows as $row) {
+                $existingDeductMap[$row['name']] = $row;
+            }
+
+            if ($divId !== null) {
+                $stmtDeduct = $db->prepare("SELECT * FROM deduction_types WHERE (division_id = ? OR division_id IS NULL) AND status = 'active'");
+                $stmtDeduct->execute([$divId]);
+            } else {
+                $stmtDeduct = $db->query("SELECT * FROM deduction_types WHERE division_id IS NULL AND status = 'active'");
+            }
+            $activeDeductTypes = $stmtDeduct->fetchAll() ?: [];
+
+            foreach ($activeDeductTypes as $dt) {
+                $dName = $dt['name'];
+                $amount = (float)$dt['default_amount'];
+                if ($dt['calculation_method'] === 'team' && $divId !== null) {
+                    $stmtCount = $db->prepare("SELECT COUNT(*) FROM employees e LEFT JOIN users u ON e.user_id = u.id WHERE e.division_id = ? AND e.status = 'active' AND (u.role_id IS NULL OR u.role_id != 1)");
+                    $stmtCount->execute([$divId]);
+                    $divCount = (int)$stmtCount->fetchColumn();
+                    if ($divCount > 0) {
+                        $amount = $amount / $divCount;
+                    }
+                }
+
+                if (!isset($existingDeductMap[$dName])) {
+                    // Aturan baru: Sisipkan aman dengan qty = 0
+                    $stmtInsItem->execute([$pId, 'deduction', $dName, (string)$amount]);
+                    $addedCount++;
+                } else {
+                    // Update tarif jika qty masih 0 dan tarif master berubah
+                    $existingItem = $existingDeductMap[$dName];
+                    if ((int)$existingItem['qty'] === 0) {
+                        $stmtUpdateRate->execute([(string)$amount, $existingItem['id']]);
+                    }
+                }
+            }
+        }
+
+        $db->commit();
+    } catch (Exception $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        error_log("syncPayrollRules Error: " . $e->getMessage());
+    }
+
+    return $addedCount;
+}
+
 // Ensure qty column exists in payroll_items
 try {
     $db->exec("ALTER TABLE payroll_items ADD COLUMN qty INTEGER DEFAULT 1");
@@ -122,6 +303,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Exception $e) {
                 $db->rollBack();
                 setFlashMessage('danger', 'Gagal mereset payroll: ' . $e->getMessage());
+            }
+        }
+        header('Location: ' . BASE_URL . '/payroll.php?period_id=' . $periodId);
+        exit;
+    }
+
+    if ($action === 'sync_rules') {
+        $periodId = (int)($_POST['period_id'] ?? 0);
+        $stmtP = $db->prepare("SELECT * FROM payroll_periods WHERE id = ? AND status IN ('draft', 'review')");
+        $stmtP->execute([$periodId]);
+        $period = $stmtP->fetch();
+
+        if ($period) {
+            $added = syncPayrollRules($db, $periodId, $period);
+            logAudit($user['id'], 'SYNC_PAYROLL_RULES', "Synced payroll rules for period ID {$periodId}. Added {$added} items.");
+            if ($added > 0) {
+                setFlashMessage('success', "Berhasil menyinkronkan aturan master! {$added} aturan/item baru ditambahkan tanpa mengubah data yang telah Anda simpan.");
+            } else {
+                setFlashMessage('info', 'Semua aturan master bonus dan potongan sudah sinkron (tidak ada aturan baru). Data yang sudah Anda simpan tetap aman.');
             }
         }
         header('Location: ' . BASE_URL . '/payroll.php?period_id=' . $periodId);
@@ -526,6 +726,11 @@ if ($selectedPeriodId > 0) {
                 $db->rollBack();
                 setFlashMessage('danger', 'Gagal inisialisasi data payroll: ' . $e->getMessage());
             }
+        } else {
+            // Otomatis sinkronkan aturan bonus/potongan baru tanpa mereset atau mengubah data yang sudah diisi
+            if ($selectedPeriod['status'] === 'draft' || $selectedPeriod['status'] === 'review') {
+                syncPayrollRules($db, $selectedPeriodId, $selectedPeriod);
+            }
         }
 
         // Fetch payroll items for display
@@ -534,6 +739,10 @@ if ($selectedPeriodId > 0) {
         $payrollItems = $stmtPay->fetchAll();
     }
 }
+
+// Fetch unit names from master bonus & deduction
+$bonusUnitMap = $db->query("SELECT name, unit_name FROM bonus_types")->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+$deductUnitMap = $db->query("SELECT name, unit_name FROM deduction_types")->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
 
 include ROOT_PATH . '/app/Views/layouts/header.php';
 include ROOT_PATH . '/app/Views/layouts/navbar.php';
@@ -687,10 +896,18 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                 <?php elseif ($selectedPeriod['status'] === 'review'): ?>
                   <form action="<?= BASE_URL ?>/payroll.php" method="POST" class="d-inline">
                     <?= csrfField() ?>
+                    <input type="hidden" name="action" value="sync_rules">
+                    <input type="hidden" name="period_id" value="<?= $selectedPeriod['id'] ?>">
+                    <button type="submit" class="btn btn-sm btn-info text-white rounded-pill font-weight-bold" title="Tarik aturan bonus &amp; potongan baru tanpa menghapus data yang sudah diisi">
+                      <i class="fa-solid fa-arrows-rotate me-1"></i> Sinkronkan Aturan Baru
+                    </button>
+                  </form>
+                  <form action="<?= BASE_URL ?>/payroll.php" method="POST" class="d-inline">
+                    <?= csrfField() ?>
                     <input type="hidden" name="action" value="calculate_payroll">
                     <input type="hidden" name="period_id" value="<?= $selectedPeriod['id'] ?>">
-                    <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill font-weight-bold" onclick="return confirm('Mereset data akan mengembalikan seluruh nominal ke nilai default. Lanjutkan?')">
-                      <i class="fa-solid fa-rotate me-1"></i> Reset Data
+                    <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill font-weight-bold" onclick="return confirm('PERINGATAN: Mereset data akan MENGHAPUS SEMUA data yang sudah Anda isi dan mengembalikan seluruh nominal ke nilai default.\n\nGunakan tombol \'Sinkronkan Aturan Baru\' jika hanya ingin menambahkan bonus/potongan baru tanpa menghapus data.\n\nApakah Anda tetap yakin ingin melakukan reset total?')">
+                      <i class="fa-solid fa-rotate me-1"></i> Reset Semua Data
                     </button>
                   </form>
                   <form action="<?= BASE_URL ?>/payroll.php" method="POST" class="d-inline">
@@ -755,7 +972,9 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                               <?php if (empty($empBonuses)): ?>
                                 <p class="text-muted small italic">Tidak ada master bonus divisi.</p>
                               <?php else: ?>
-                                <?php foreach ($empBonuses as $eb): ?>
+                                <?php foreach ($empBonuses as $eb): 
+                                    $bUnit = !empty($bonusUnitMap[$eb['name']]) ? strtolower($bonusUnitMap[$eb['name']]) : 'unit';
+                                ?>
                                   <?php if ($selectedPeriod['status'] === 'review'): ?>
                                     <div class="p-3 mb-2 rounded-3" style="background-color: #f6ffed; border: 1px solid #d9f7be;">
                                       <div class="d-flex justify-content-between align-items-center">
@@ -766,11 +985,11 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                                               <span class="badge text-white ms-1 px-2 py-0.5" style="font-size: 0.7rem; vertical-align: middle; background-color: #389e0d;">Tim</span>
                                             <?php endif; ?>
                                           </h6>
-                                          <small class="opacity-75" style="color: #389e0d; font-weight: 500;"><?= formatRupiah((float)$eb['notes']) ?> / unit</small>
+                                          <small class="opacity-75" style="color: #389e0d; font-weight: 500;"><?= formatRupiah((float)$eb['notes']) ?> / <?= e($bUnit) ?></small>
                                         </div>
                                         <div class="d-flex align-items-center gap-1">
                                           <input type="number" name="qty[<?= $eb['id'] ?>]" class="form-control text-center qty-input bonus-qty-input px-1" style="width: 55px; height: 32px; border: 1px solid #b7eb8f; border-radius: 6px; font-weight: bold; color: #389e0d;" value="<?= $eb['qty'] ?>" data-rate="<?= (float)$eb['notes'] ?>" data-payroll-id="<?= $item['id'] ?>" min="0" required>
-                                          <span class="small font-weight-bold" style="color: #389e0d;">unit</span>
+                                          <span class="small font-weight-bold" style="color: #389e0d;"><?= e($bUnit) ?></span>
                                         </div>
                                       </div>
                                     </div>
@@ -805,7 +1024,9 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                               <?php if (empty($empDeductions)): ?>
                                 <p class="text-muted small italic">Tidak ada master potongan divisi.</p>
                               <?php else: ?>
-                                <?php foreach ($empDeductions as $ed): ?>
+                                <?php foreach ($empDeductions as $ed): 
+                                    $dUnit = !empty($deductUnitMap[$ed['name']]) ? strtolower($deductUnitMap[$ed['name']]) : 'unit';
+                                ?>
                                   <?php if ($selectedPeriod['status'] === 'review'): ?>
                                     <div class="p-3 mb-2 rounded-3" style="background-color: #fff2f0; border: 1px solid #ffccc7;">
                                       <div class="d-flex justify-content-between align-items-center">
@@ -816,11 +1037,11 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                                               <span class="badge text-white ms-1 px-2 py-0.5" style="font-size: 0.7rem; vertical-align: middle; background-color: #cf1322;">Tim</span>
                                             <?php endif; ?>
                                           </h6>
-                                          <small class="opacity-75" style="color: #cf1322; font-weight: 500;"><?= formatRupiah((float)$ed['notes']) ?> / jam</small>
+                                          <small class="opacity-75" style="color: #cf1322; font-weight: 500;"><?= formatRupiah((float)$ed['notes']) ?> / <?= e($dUnit) ?></small>
                                         </div>
                                         <div class="d-flex align-items-center gap-1">
                                           <input type="number" name="qty[<?= $ed['id'] ?>]" class="form-control text-center qty-input deduction-qty-input px-1" style="width: 55px; height: 32px; border: 1px solid #ffa39e; border-radius: 6px; font-weight: bold; color: #cf1322;" value="<?= $ed['qty'] ?>" data-rate="<?= (float)$ed['notes'] ?>" data-payroll-id="<?= $item['id'] ?>" min="0" required>
-                                          <span class="small font-weight-bold" style="color: #cf1322;">jam</span>
+                                          <span class="small font-weight-bold" style="color: #cf1322;"><?= e($dUnit) ?></span>
                                         </div>
                                       </div>
                                     </div>

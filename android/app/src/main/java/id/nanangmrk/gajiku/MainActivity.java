@@ -32,15 +32,16 @@ public class MainActivity extends BridgeActivity {
             settings.setDatabaseEnabled(true);
             settings.setAllowFileAccess(true);
             settings.setAllowContentAccess(true);
-            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); // Enforce pure HTTPS
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+            settings.setJavaScriptCanOpenWindowsAutomatically(true);
 
             webView.setWebViewClient(new WebViewClient() {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                     String url = request.getUrl().toString();
 
-                    // Open external intent schemes (WhatsApp, Tel, Mailto) in native apps
-                    if (url.startsWith("whatsapp:") || url.startsWith("tel:") || url.startsWith("mailto:") || url.startsWith("intent:")) {
+                    // Open external intent schemes (WhatsApp, Tel, Mailto, Market) in native apps
+                    if (url.startsWith("whatsapp:") || url.startsWith("tel:") || url.startsWith("mailto:") || url.startsWith("intent:") || url.startsWith("market:")) {
                         try {
                             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                             startActivity(intent);
@@ -50,8 +51,20 @@ public class MainActivity extends BridgeActivity {
                         }
                     }
 
-                    // Open external web domains in outer system browser
-                    if (!url.contains("gajiku.nanangmrk.id")) {
+                    // Keep internal URLs, localhost, LAN IPs, and data/blob URLs inside WebView
+                    Uri parsedUri = request.getUrl();
+                    String host = parsedUri.getHost();
+                    boolean isInternal = host != null && (
+                        host.contains("nanangmrk.id") || 
+                        host.equals("localhost") || 
+                        host.equals("127.0.0.1") || 
+                        host.equals("10.0.2.2") || 
+                        host.startsWith("192.168.") || 
+                        host.startsWith("10.") || 
+                        host.startsWith("172.")
+                    ) || url.startsWith("blob:") || url.startsWith("data:");
+
+                    if (!isInternal) {
                         try {
                             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                             startActivity(intent);
@@ -70,6 +83,20 @@ public class MainActivity extends BridgeActivity {
                     CookieManager.getInstance().flush();
                 }
             });
+        }
+    }
+
+    /**
+     * Handle Android hardware and gesture back button:
+     * Navigate backward in WebView history before exiting the application.
+     */
+    @Override
+    public void onBackPressed() {
+        WebView webView = getBridge().getWebView();
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            super.onBackPressed();
         }
     }
 }

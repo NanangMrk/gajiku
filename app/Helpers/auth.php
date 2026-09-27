@@ -40,6 +40,11 @@ function requireLogin(): array {
     return getAuthUser();
 }
 
+function requireAuth(): array {
+    return requireLogin();
+}
+
+
 function attemptLogin(string $usernameOrEmail, string $password): bool {
     $db = getDbConnection();
     $stmt = $db->prepare("SELECT * FROM users WHERE (username = ? OR email = ?) AND status = 'active'");

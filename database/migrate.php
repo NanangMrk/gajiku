@@ -412,6 +412,50 @@ $queries = [
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_used_at DATETIME,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )",
+
+    // 29. API Integration Clients (for external bots/agents like Lisa)
+    "CREATE TABLE IF NOT EXISTS api_clients (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        client_key TEXT NOT NULL UNIQUE,
+        token_hash TEXT NOT NULL,
+        scopes TEXT NOT NULL DEFAULT 'payroll:read,payroll:propose',
+        status TEXT DEFAULT 'active', -- active, revoked
+        last_used_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )",
+
+    // 30. Payroll Change Proposals (Two-step approval flow for AI agents)
+    "CREATE TABLE IF NOT EXISTS payroll_change_proposals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER,
+        proposed_by TEXT NOT NULL,
+        payroll_period_id INTEGER NOT NULL,
+        employee_id INTEGER NOT NULL,
+        payroll_id INTEGER NOT NULL,
+        change_type TEXT NOT NULL, -- 'deduction' or 'individual_bonus'
+        item_name TEXT NOT NULL,
+        amount REAL NOT NULL,
+        qty INTEGER DEFAULT 1,
+        rate REAL NOT NULL,
+        reason TEXT NOT NULL,
+        before_value TEXT NOT NULL, -- JSON snapshot of payroll state before change
+        after_value TEXT NOT NULL,  -- JSON snapshot of projected payroll state after change
+        base_payroll_hash TEXT NOT NULL, -- SHA-256 fingerprint for optimistic locking
+        status TEXT DEFAULT 'pending', -- pending, approved, rejected, stale
+        idempotency_key TEXT UNIQUE,
+        reviewed_by INTEGER,
+        reviewed_at DATETIME,
+        rejection_reason TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES api_clients(id) ON DELETE SET NULL,
+        FOREIGN KEY (payroll_period_id) REFERENCES payroll_periods(id) ON DELETE CASCADE,
+        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+        FOREIGN KEY (payroll_id) REFERENCES payrolls(id) ON DELETE CASCADE,
+        FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
     )"
 ];
 
@@ -431,7 +475,11 @@ $indexes = [
     "CREATE INDEX IF NOT EXISTS idx_payrolls_period ON payrolls(payroll_period_id)",
     "CREATE INDEX IF NOT EXISTS idx_payrolls_employee ON payrolls(employee_id)",
     "CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id)",
-    "CREATE INDEX IF NOT EXISTS idx_remember_tokens_selector ON remember_tokens(selector)"
+    "CREATE INDEX IF NOT EXISTS idx_remember_tokens_selector ON remember_tokens(selector)",
+    "CREATE INDEX IF NOT EXISTS idx_api_clients_key ON api_clients(client_key)",
+    "CREATE INDEX IF NOT EXISTS idx_proposals_period_status ON payroll_change_proposals(payroll_period_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_proposals_employee ON payroll_change_proposals(employee_id)",
+    "CREATE INDEX IF NOT EXISTS idx_proposals_idempotency ON payroll_change_proposals(idempotency_key)"
 ];
 
 foreach ($indexes as $idx) {
