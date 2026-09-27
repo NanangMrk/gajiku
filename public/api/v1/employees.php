@@ -79,9 +79,10 @@ try {
         'data' => $employees
     ]);
 } catch (\Throwable $e) {
+    error_log("[API Employees Error] " . $e->getMessage());
     sendJsonResponse(500, [
         'success' => false,
         'error' => 'Internal Server Error',
-        'message' => $e->getMessage()
+        'message' => 'Terjadi kesalahan pada server saat memproses data karyawan.'
     ]);
 }

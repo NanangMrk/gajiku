@@ -17,6 +17,9 @@ if (preg_match('#/api/v1/employees$#', $uri)) {
 } elseif (preg_match('#/api/v1/periods$#', $uri)) {
     require __DIR__ . '/periods.php';
     exit;
+} elseif (preg_match('#/api/v1/(payroll[-_])?detail(\.php)?$#', $uri) || preg_match('#/api/v1/payroll_detail$#', $uri)) {
+    require __DIR__ . '/payroll_detail.php';
+    exit;
 } elseif (preg_match('#/api/v1/(payroll/)?preview$#', $uri)) {
     require __DIR__ . '/preview.php';
     exit;
@@ -34,6 +37,7 @@ sendJsonResponse(200, [
     'endpoints' => [
         'GET  /api/v1/employees.php' => 'Daftar data karyawan aktif (scope: payroll:read)',
         'GET  /api/v1/periods.php' => 'Daftar periode payroll dan statusnya (scope: payroll:read)',
+        'GET  /api/v1/payroll_detail.php?period_id=<ID>&employee_id=<ID>' => 'Rincian nominal payroll karyawan pada satu periode (scope: payroll:read)',
         'POST /api/v1/preview.php' => 'Kalkulasi pratinjau perubahan potongan/bonus (scope: payroll:propose)',
         'POST /api/v1/proposals.php' => 'Kirim pengajuan perubahan payroll ber-idempotency (scope: payroll:propose)',
         'GET  /api/v1/proposals.php' => 'Cek status pengajuan perubahan payroll (scope: payroll:read)'

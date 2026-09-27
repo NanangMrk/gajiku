@@ -29,8 +29,7 @@ try {
             end_date,
             payment_date,
             status,
-            created_at,
-            updated_at
+            created_at
         FROM payroll_periods
     ";
 
@@ -71,9 +70,10 @@ try {
         'data' => $periods
     ]);
 } catch (\Throwable $e) {
+    error_log("[API Periods Error] " . $e->getMessage());
     sendJsonResponse(500, [
         'success' => false,
         'error' => 'Internal Server Error',
-        'message' => $e->getMessage()
+        'message' => 'Terjadi kesalahan pada server saat memproses data periode payroll.'
     ]);
 }
