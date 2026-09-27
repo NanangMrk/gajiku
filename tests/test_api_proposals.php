@@ -302,7 +302,7 @@ assertTest("Take Home Pay terpotong tepat (Rp4.900.000)", (float)$stmtCheckTHP->
 // -------------------------------------------------------------
 echo "\n--- TEST 9: Uji HTTP Nyata & Isolasi Antar Klien (Client A vs Client B) ---\n";
 
-function makeCurlRequest(string $url, string $method = 'GET', ?string $token = null, ?array $body = null, ?string $testDb = null): array {
+function makeCurlRequest(string $url, string $method = 'GET', ?string $token = null, ?array $body = null): array {
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
@@ -311,9 +311,6 @@ function makeCurlRequest(string $url, string $method = 'GET', ?string $token = n
     $headers = ['Accept: application/json'];
     if ($token) {
         $headers[] = 'Authorization: Bearer ' . $token;
-    }
-    if ($testDb) {
-        $headers[] = 'X-Gajiku-Test-Db: ' . $testDb;
     }
     if ($body !== null) {
         $headers[] = 'Content-Type: application/json';
@@ -332,8 +329,6 @@ function makeCurlRequest(string $url, string $method = 'GET', ?string $token = n
         'raw' => $raw
     ];
 }
-
-$baseUrl = 'http://127.0.0.1:8000';
 
 // 9.1 Buat Proposal khusus Client A dan Proposal khusus Client B di DB Sementara
 $keyA = 'http_iso_a_' . bin2hex(random_bytes(4));
@@ -365,33 +360,53 @@ $propBId = (int)$propB['proposal']['id'];
 // Release CLI SQLite connection lock so HTTP server can read/write without concurrency lock
 $tempDb = null;
 
-// 9.2 Client B mencoba akses Proposal Client A via HTTP GET by ID -> Harap 404
-$httpGetById = makeCurlRequest("{$baseUrl}/api/v1/proposals.php?id={$propAId}", 'GET', $tokenB, null, $tempDbPath);
-assertTest("HTTP: Client B mengakses Proposal Client A via ?id={$propAId} menghasilkan HTTP 404", $httpGetById['code'] === 404, "Actual Code: {$httpGetById['code']}, Err: {$httpGetById['err']}");
+// Spawn ephemeral test server on isolated port 8009 with DATABASE_PATH pointing to temp DB
+$testPort = 8009;
+$testServerCmd = sprintf(
+    'DATABASE_PATH=%s %s -S 127.0.0.1:%d -t %s > /dev/null 2>&1 & echo $!',
+    escapeshellarg($tempDbPath),
+    escapeshellcmd(PHP_BINARY),
+    $testPort,
+    escapeshellarg(realpath(__DIR__ . '/../public'))
+);
+$testServerPid = (int)trim(shell_exec($testServerCmd));
+usleep(250000); // 250ms for server to bind
 
-// 9.3 Client B mencoba akses Proposal Client A via HTTP GET by Idempotency Key -> Harap 404
-$httpGetByIdem = makeCurlRequest("{$baseUrl}/api/v1/proposals.php?idempotency_key={$keyA}", 'GET', $tokenB, null, $tempDbPath);
-assertTest("HTTP: Client B mengakses Proposal Client A via ?idempotency_key menghasilkan HTTP 404", $httpGetByIdem['code'] === 404, "Actual Code: {$httpGetByIdem['code']}, Err: {$httpGetByIdem['err']}");
+$baseUrl = "http://127.0.0.1:{$testPort}";
 
-// 9.4 Client B meminta daftar proposal via HTTP GET -> Hanya proposal miliknya (Prop B), BUKAN Prop A
-$httpGetListB = makeCurlRequest("{$baseUrl}/api/v1/proposals.php", 'GET', $tokenB, null, $tempDbPath);
-$listB = $httpGetListB['json']['data'] ?? [];
-$containsPropAInListB = false;
-$containsPropBInListB = false;
-foreach ($listB as $item) {
-    if ((int)$item['id'] === $propAId) $containsPropAInListB = true;
-    if ((int)$item['id'] === $propBId) $containsPropBInListB = true;
+try {
+    // 9.2 Client B mencoba akses Proposal Client A via HTTP GET by ID -> Harap 404
+    $httpGetById = makeCurlRequest("{$baseUrl}/api/v1/proposals.php?id={$propAId}", 'GET', $tokenB);
+    assertTest("HTTP: Client B mengakses Proposal Client A via ?id={$propAId} menghasilkan HTTP 404", $httpGetById['code'] === 404, "Actual Code: {$httpGetById['code']}, Err: {$httpGetById['err']}");
+
+    // 9.3 Client B mencoba akses Proposal Client A via HTTP GET by Idempotency Key -> Harap 404
+    $httpGetByIdem = makeCurlRequest("{$baseUrl}/api/v1/proposals.php?idempotency_key={$keyA}", 'GET', $tokenB);
+    assertTest("HTTP: Client B mengakses Proposal Client A via ?idempotency_key menghasilkan HTTP 404", $httpGetByIdem['code'] === 404, "Actual Code: {$httpGetByIdem['code']}, Err: {$httpGetByIdem['err']}");
+
+    // 9.4 Client B meminta daftar proposal via HTTP GET -> Hanya proposal miliknya (Prop B), BUKAN Prop A
+    $httpGetListB = makeCurlRequest("{$baseUrl}/api/v1/proposals.php", 'GET', $tokenB);
+    $listB = $httpGetListB['json']['data'] ?? [];
+    $containsPropAInListB = false;
+    $containsPropBInListB = false;
+    foreach ($listB as $item) {
+        if ((int)$item['id'] === $propAId) $containsPropAInListB = true;
+        if ((int)$item['id'] === $propBId) $containsPropBInListB = true;
+    }
+    assertTest("HTTP: Daftar proposal Client B TIDAK berisi proposal Client A", $httpGetListB['code'] === 200 && !$containsPropAInListB && $containsPropBInListB, "Actual Code: {$httpGetListB['code']}, Raw: {$httpGetListB['raw']}");
+
+    // 9.5 Client A meminta daftar proposal miliknya -> Hanya melihat miliknya
+    $httpGetListA = makeCurlRequest("{$baseUrl}/api/v1/proposals.php", 'GET', $tokenA);
+    $listA = $httpGetListA['json']['data'] ?? [];
+    $containsPropBInListA = false;
+    foreach ($listA as $item) {
+        if ((int)$item['id'] === $propBId) $containsPropBInListA = true;
+    }
+    assertTest("HTTP: Daftar proposal Client A TIDAK berisi proposal Client B", $httpGetListA['code'] === 200 && !$containsPropBInListA, "Actual Code: {$httpGetListA['code']}, Raw: {$httpGetListA['raw']}");
+} finally {
+    if ($testServerPid > 0) {
+        exec("kill -9 {$testServerPid} 2>/dev/null");
+    }
 }
-assertTest("HTTP: Daftar proposal Client B TIDAK berisi proposal Client A", $httpGetListB['code'] === 200 && !$containsPropAInListB && $containsPropBInListB, "Actual Code: {$httpGetListB['code']}, Raw: {$httpGetListB['raw']}");
-
-// 9.5 Client A meminta daftar proposal miliknya -> Hanya melihat miliknya
-$httpGetListA = makeCurlRequest("{$baseUrl}/api/v1/proposals.php", 'GET', $tokenA, null, $tempDbPath);
-$listA = $httpGetListA['json']['data'] ?? [];
-$containsPropBInListA = false;
-foreach ($listA as $item) {
-    if ((int)$item['id'] === $propBId) $containsPropBInListA = true;
-}
-assertTest("HTTP: Daftar proposal Client A TIDAK berisi proposal Client B", $httpGetListA['code'] === 200 && !$containsPropBInListA, "Actual Code: {$httpGetListA['code']}, Raw: {$httpGetListA['raw']}");
 
 
 // -------------------------------------------------------------
