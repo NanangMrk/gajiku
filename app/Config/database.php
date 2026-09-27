@@ -2,11 +2,31 @@
 // app/Config/database.php — PDO SQLite Singleton
 require_once __DIR__ . '/app.php';
 
-function getDbConnection(): PDO {
+function getDbConnection(?string $customPath = null, bool $forceNew = false): PDO {
     static $db = null;
+    static $lastPath = null;
     
-    if ($db === null) {
-        $dbPath = DATABASE_PATH;
+    // Header-based isolation for local test runs (only from localhost and restricted to temp directory)
+    $testDbHeader = null;
+    $remoteIp = $_SERVER['REMOTE_ADDR'] ?? '';
+    if (in_array($remoteIp, ['127.0.0.1', '::1', '']) && !empty($_SERVER['HTTP_X_GAJIKU_TEST_DB'])) {
+        $candidate = $_SERVER['HTTP_X_GAJIKU_TEST_DB'];
+        $cleanCandidate = str_replace('/private/var/', '/var/', str_replace('/private/tmp/', '/tmp/', $candidate));
+        $cleanSysTemp = str_replace('/private/var/', '/var/', str_replace('/private/tmp/', '/tmp/', sys_get_temp_dir()));
+        if (
+            strpos($cleanCandidate, '/tmp/') === 0 || 
+            strpos($cleanCandidate, '/var/folders/') === 0 || 
+            strpos($cleanCandidate, $cleanSysTemp) === 0
+        ) {
+            $testDbHeader = $candidate;
+        }
+    }
+
+    $envPath = getenv('DATABASE_PATH') ?: getenv('GAJIKU_DATABASE_PATH');
+    $dbPath = $customPath ?: ($testDbHeader ?: ($envPath ?: DATABASE_PATH));
+    
+    if ($db === null || $forceNew || $dbPath !== $lastPath) {
+        $lastPath = $dbPath;
         $dir = dirname($dbPath);
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
@@ -16,8 +36,10 @@ function getDbConnection(): PDO {
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         
-        // Enable foreign keys in SQLite
+        // Enable foreign keys, WAL mode, and busy timeout in SQLite
         $db->exec('PRAGMA foreign_keys = ON;');
+        $db->exec('PRAGMA journal_mode = WAL;');
+        $db->exec('PRAGMA busy_timeout = 5000;');
 
         // Dynamic Schema Update for new columns
         try {

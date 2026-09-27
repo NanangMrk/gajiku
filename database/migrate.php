@@ -339,6 +339,7 @@ $queries = [
         type TEXT NOT NULL, -- basic, individual_bonus, team_bonus, adjustment, deduction
         name TEXT NOT NULL,
         amount REAL NOT NULL,
+        qty INTEGER DEFAULT 1,
         notes TEXT,
         FOREIGN KEY (payroll_id) REFERENCES payrolls(id) ON DELETE CASCADE
     )",

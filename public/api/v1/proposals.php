@@ -106,6 +106,8 @@ if ($method === 'POST') {
         $proposalId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
         $idempotencyKey = trim($_GET['idempotency_key'] ?? '');
 
+        $clientId = (int)$client['id'];
+
         if ($proposalId > 0) {
             $stmt = $db->prepare("
                 SELECT pcp.*, pp.name as period_name, pp.status as period_status,
@@ -113,9 +115,9 @@ if ($method === 'POST') {
                 FROM payroll_change_proposals pcp
                 JOIN payroll_periods pp ON pcp.payroll_period_id = pp.id
                 JOIN employees e ON pcp.employee_id = e.id
-                WHERE pcp.id = ?
+                WHERE pcp.id = ? AND pcp.client_id = ?
             ");
-            $stmt->execute([$proposalId]);
+            $stmt->execute([$proposalId, $clientId]);
             $proposal = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$proposal) {
@@ -133,9 +135,9 @@ if ($method === 'POST') {
                 FROM payroll_change_proposals pcp
                 JOIN payroll_periods pp ON pcp.payroll_period_id = pp.id
                 JOIN employees e ON pcp.employee_id = e.id
-                WHERE pcp.idempotency_key = ?
+                WHERE pcp.idempotency_key = ? AND pcp.client_id = ?
             ");
-            $stmt->execute([$idempotencyKey]);
+            $stmt->execute([$idempotencyKey, $clientId]);
             $proposal = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$proposal) {
@@ -147,7 +149,7 @@ if ($method === 'POST') {
 
             sendJsonResponse(200, ['success' => true, 'data' => $proposal]);
         } else {
-            // List proposals
+            // List proposals strictly scoped to authenticated client
             $statusFilter = trim($_GET['status'] ?? '');
             $periodFilter = isset($_GET['payroll_period_id']) ? (int)$_GET['payroll_period_id'] : 0;
 
@@ -160,9 +162,9 @@ if ($method === 'POST') {
                 FROM payroll_change_proposals pcp
                 JOIN payroll_periods pp ON pcp.payroll_period_id = pp.id
                 JOIN employees e ON pcp.employee_id = e.id
-                WHERE 1=1
+                WHERE pcp.client_id = ?
             ";
-            $params = [];
+            $params = [$clientId];
 
             if (!empty($statusFilter)) {
                 $sql .= " AND pcp.status = ?";

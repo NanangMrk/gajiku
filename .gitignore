@@ -1,7 +1,10 @@
 # =============================
 # DATABASE — Jangan commit file SQLite yang sudah berisi data production
 # =============================
-database/payroll.sqlite
+database/*.sqlite
+database/*.sqlite*
+database/*.db
+database/*.backup*
 
 # =============================
 # FILE UPLOAD PENGGUNA

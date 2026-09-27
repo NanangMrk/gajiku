@@ -14,7 +14,7 @@ define('APP_VERSION', '1.0.0');
 
 // Directory paths (ROOT_PATH = project root, 2 levels up from app/Config/)
 define('ROOT_PATH', dirname(__DIR__, 2));
-define('DATABASE_PATH', ROOT_PATH . '/database/payroll.sqlite');
+define('DATABASE_PATH', getenv('DATABASE_PATH') ?: (getenv('GAJIKU_DATABASE_PATH') ?: ROOT_PATH . '/database/payroll.sqlite'));
 define('STORAGE_PATH', ROOT_PATH . '/storage');
 
 // Robust Base URL detection matching document root

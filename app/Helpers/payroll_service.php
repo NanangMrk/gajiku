@@ -95,7 +95,14 @@ function calculateEmployeePayrollPreview(
     int $qty, 
     string $reason
 ): array {
-    $period = ensurePayrollPeriodReady($db, $periodId);
+    // 1. Fetch period directly without mutating DB
+    $stmtP = $db->prepare("SELECT * FROM payroll_periods WHERE id = ?");
+    $stmtP->execute([$periodId]);
+    $period = $stmtP->fetch();
+
+    if (!$period) {
+        throw new InvalidArgumentException("Periode payroll ID {$periodId} tidak ditemukan.");
+    }
 
     // Validate period status
     if (!in_array($period['status'], ['draft', 'review'])) {
@@ -149,7 +156,7 @@ function calculateEmployeePayrollPreview(
     $payroll = $stmtPay->fetch();
 
     if (!$payroll) {
-        throw new RuntimeException("Data payroll untuk karyawan {$emp['full_name']} pada periode {$period['name']} belum diinisialisasi.");
+        throw new DomainException("Data payroll untuk karyawan {$emp['full_name']} pada periode '{$period['name']}' belum diinisialisasi oleh admin HR. Pratinjau atau pengajuan perubahan hanya dapat dilakukan setelah periode payroll diinisialisasi.");
     }
 
     $payrollId = (int)$payroll['id'];
