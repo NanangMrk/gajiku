@@ -231,7 +231,7 @@ try {
 }
 
 $cronWebhookSecret = getOrCreateWebhookSecret($db);
-$webhookUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_URL . '/api/v1/webhook_payroll.php';
+$webhookUrl = BASE_URL . '/api/v1/webhook_payroll.php';
 
 $pageTitle = 'Proses Payroll';
 
