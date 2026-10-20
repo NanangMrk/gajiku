@@ -26,6 +26,9 @@ if (preg_match('#/api/v1/employees$#', $uri)) {
 } elseif (preg_match('#/api/v1/(payroll/)?proposals$#', $uri)) {
     require __DIR__ . '/proposals.php';
     exit;
+} elseif (preg_match('#/api/v1/(payroll/)?(webhook|cron)(_payroll)?(\.php)?$#', $uri) || preg_match('#/api/v1/webhook_payroll$#', $uri)) {
+    require __DIR__ . '/webhook_payroll.php';
+    exit;
 }
 
 // Default response: API v1 status and directory
@@ -40,7 +43,8 @@ sendJsonResponse(200, [
         'GET  /api/v1/payroll_detail.php?period_id=<ID>&employee_id=<ID>' => 'Rincian nominal payroll karyawan pada satu periode (scope: payroll:read)',
         'POST /api/v1/preview.php' => 'Kalkulasi pratinjau perubahan potongan/bonus (scope: payroll:propose)',
         'POST /api/v1/proposals.php' => 'Kirim pengajuan perubahan payroll ber-idempotency (scope: payroll:propose)',
-        'GET  /api/v1/proposals.php' => 'Cek status pengajuan perubahan payroll (scope: payroll:read)'
+        'GET  /api/v1/proposals.php' => 'Cek status pengajuan perubahan payroll (scope: payroll:read)',
+        'POST /api/v1/webhook_payroll.php' => 'Webhook cronjob otomatisasi pembuatan periode, sinkronisasi aturan & kalkulasi payroll (auth: X-Webhook-Secret / Bearer Token)'
     ],
-    'documentation' => 'Akses terbatas untuk klien eksternal berlisensi (Lisa / Hermes Agent). Persetujuan dilakukan secara manual oleh Bos di GAJIKU Web.'
+    'documentation' => 'Akses terbatas untuk klien eksternal berlisensi (Lisa / Hermes Agent & Cronjob Scheduler). Persetujuan perubahan payroll manual dilakukan oleh Bos di GAJIKU Web.'
 ]);
