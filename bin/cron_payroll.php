@@ -93,6 +93,9 @@ try {
     echo "[✓] Periode Baru Dibuat   : " . ($result['period']['was_newly_created'] ? 'YA' : 'TIDAK (Sudah Ada)') . "\n";
     echo "[✓] Item/Aturan Ditambah  : " . $result['summary']['rules_or_items_added'] . "\n";
     echo "[✓] Jumlah Karyawan       : " . $result['summary']['employee_count'] . " orang\n";
+    if (isset($result['summary']['payslips_generated']) && $result['summary']['payslips_generated'] > 0) {
+        echo "[✓] Slip Gaji Diterbitkan : " . $result['summary']['payslips_generated'] . " slip\n";
+    }
     echo "[✓] Total Take Home Pay   : " . $result['summary']['formatted_total_payroll'] . "\n";
     echo "[✓] Waktu Eksekusi        : " . $result['execution_time_seconds'] . " detik\n";
     echo "[✓] Pesan                 : " . $result['message'] . "\n";

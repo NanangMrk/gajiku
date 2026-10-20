@@ -945,6 +945,17 @@ function runPayrollCronWorkflow(PDO $db, array $options = []): array {
             if (!$period) {
                 throw new InvalidArgumentException("Periode payroll ID {$periodId} tidak ditemukan.");
             }
+        } elseif ($action === 'finalize') {
+            // Cari periode berstatus 'review' terbaru untuk difinalisasi
+            $stmtRev = $db->query("SELECT * FROM payroll_periods WHERE status = 'review' ORDER BY id DESC LIMIT 1");
+            $period = $stmtRev ? $stmtRev->fetch() : null;
+            if ($period) {
+                $periodId = (int)$period['id'];
+            } else {
+                $periodRes = autoCreatePayrollPeriod($db, $month, $year);
+                $period = $periodRes['period'];
+                $periodId = (int)$period['id'];
+            }
         } else {
             $periodRes = autoCreatePayrollPeriod($db, $month, $year);
             $period = $periodRes['period'];
@@ -965,19 +976,58 @@ function runPayrollCronWorkflow(PDO $db, array $options = []): array {
 
         // Step 3: Recalculate Totals
         $recalc = [];
-        if (in_array($action, ['auto', 'sync_rules', 'recalculate', 'create_period'])) {
+        if (in_array($action, ['auto', 'sync_rules', 'recalculate', 'create_period', 'finalize'])) {
             $recalc = recalculatePayrollPeriodTotals($db, $periodId);
             $actionsPerformed[] = 'recalculated_totals';
+
+            // Jika periode masih draft dan diproses auto, naikkan ke review agar siap ditinjau
+            if ($period['status'] === 'draft' && $action === 'auto') {
+                $db->prepare("UPDATE payroll_periods SET status = 'review' WHERE id = ?")->execute([$periodId]);
+                $period['status'] = 'review';
+            }
         }
 
-        // Step 4: Finalize if requested
+        // Step 4: Finalize & Generate Payslips if requested
         $finalized = false;
+        $slipsGenerated = 0;
         if ($action === 'finalize') {
-            if ($period['status'] === 'review') {
-                $stmtFinal = $db->prepare("UPDATE payroll_periods SET status = 'final', finalized_at = datetime('now', 'localtime'), finalized_by = 1 WHERE id = ?");
-                $stmtFinal->execute([$periodId]);
+            if (in_array($period['status'], ['review', 'draft'])) {
+                $adminId = 1;
+                try {
+                    $stmtAdm = $db->query("SELECT u.id FROM users u JOIN roles r ON u.role_id = r.id WHERE r.slug IN ('super_admin', 'admin_hr') ORDER BY u.id ASC LIMIT 1");
+                    $adm = $stmtAdm ? $stmtAdm->fetch() : null;
+                    if ($adm) $adminId = (int)$adm['id'];
+                } catch (\Throwable $e) {}
+
+                $stmtFinal = $db->prepare("UPDATE payroll_periods SET status = 'final', finalized_at = datetime('now', 'localtime'), finalized_by = ? WHERE id = ?");
+                $stmtFinal->execute([$adminId, $periodId]);
                 $finalized = true;
                 $actionsPerformed[] = 'finalized_period';
+
+                // Buat data slip gaji (payslips) & kirim notifikasi ke karyawan
+                $payrolls = $db->query("SELECT id, employee_id, payslip_number FROM payrolls WHERE payroll_period_id = {$periodId}")->fetchAll();
+                $stmtSlip = $db->prepare("INSERT OR IGNORE INTO payslips (payroll_id, employee_id, payslip_number) VALUES (?, ?, ?)");
+                foreach ($payrolls as $pay) {
+                    $stmtSlip->execute([$pay['id'], $pay['employee_id'], $pay['payslip_number']]);
+                    $slipsGenerated++;
+
+                    if (!$dryRun) {
+                        try {
+                            $stmtEmpUser = $db->prepare("SELECT user_id FROM employees WHERE id = ?");
+                            $stmtEmpUser->execute([$pay['employee_id']]);
+                            $empUserId = $stmtEmpUser->fetchColumn();
+                            if ($empUserId && function_exists('sendNotification')) {
+                                sendNotification($empUserId, 'Slip Gaji Tersedia', 'Slip Gaji periode ' . $period['name'] . ' telah difinalisasi & siap diakses.', '/payslips.php?id=' . $pay['id']);
+                            }
+                        } catch (\Throwable $e) {}
+                    }
+                }
+                $actionsPerformed[] = 'generated_payslips';
+            } elseif ($period['status'] === 'final') {
+                $finalized = true;
+                $statusMsg = "Periode '{$period['name']}' sudah berstatus FINAL sebelumnya (tidak ada perubahan).";
+            } else {
+                throw new DomainException("Periode '{$period['name']}' memiliki status tidak valid ('{$period['status']}').");
             }
         }
 
@@ -987,7 +1037,11 @@ function runPayrollCronWorkflow(PDO $db, array $options = []): array {
             $db->rollBack();
             $statusMsg = "Dry run selesai (perubahan di-rollback).";
         } else {
-            $statusMsg = "Cronjob payroll berhasil dieksekusi.";
+            if (!isset($statusMsg)) {
+                $statusMsg = $finalized 
+                    ? "Payroll periode '{$period['name']}' BERHASIL DIFINALISASI & DIKUNCI PERMANEN. Sebanyak {$slipsGenerated} slip gaji telah diterbitkan." 
+                    : "Cronjob payroll berhasil dieksekusi.";
+            }
             logAudit(null, 'CRON_PAYROLL_EXECUTE', "{$triggeredBy} executed action '{$action}' on period '{$period['name']}' (ID: {$periodId}). Execution time: {$executionTime}s");
         }
 
@@ -1010,7 +1064,8 @@ function runPayrollCronWorkflow(PDO $db, array $options = []): array {
                 'rules_or_items_added' => $rulesAdded,
                 'employee_count' => $recalc['employee_count'] ?? 0,
                 'total_payroll_amount' => $recalc['grand_take_home_pay'] ?? 0,
-                'formatted_total_payroll' => $recalc['formatted_thp'] ?? 'Rp0'
+                'formatted_total_payroll' => $recalc['formatted_thp'] ?? 'Rp0',
+                'payslips_generated' => $slipsGenerated
             ],
             'execution_time_seconds' => $executionTime,
             'timestamp' => date('Y-m-d H:i:s'),

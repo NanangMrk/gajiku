@@ -1117,6 +1117,10 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                       <i class="fa-solid fa-rotate"></i>
                     </button>
                   </form>
+
+                  <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 shadow-sm" data-bs-toggle="modal" data-bs-target="#cronWebhookModal" title="Panduan Cronjob aaPanel (Otomasi Finalisasi & Kunci)">
+                    <i class="fa-solid fa-bolt text-warning"></i>
+                  </button>
                 <?php endif; ?>
               </div>
             </div>
@@ -1564,29 +1568,66 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
               </div>
             </div>
 
-            <!-- Panduan Penjadwalan (Tabs/Pills) -->
+            <!-- Panduan Penjadwalan aaPanel & Server Crontab -->
             <div class="card border bg-light rounded-3 mb-4">
               <div class="card-body p-3">
                 <h6 class="font-weight-bold text-dark mb-2">
-                  <i class="fa-solid fa-terminal me-1 text-success"></i> Contoh Penjadwalan di Server / aaPanel
+                  <i class="fa-solid fa-terminal me-1 text-success"></i> Panduan Penjadwalan Cronjob di aaPanel / Linux Crontab
                 </h6>
+                <p class="small text-muted mb-3">
+                  Anda dapat membagi otomasi payroll menjadi 2 tahap terpisah di menu <strong>Cron</strong> aaPanel:
+                </p>
 
-                <div class="mb-3">
-                  <span class="badge bg-primary text-white mb-1">Opsi 1: aaPanel Cron / Linux Crontab (via cURL Webhook)</span>
-                  <div class="position-relative mt-1">
-                    <pre class="bg-dark text-light p-2.5 rounded-3 font-monospace small mb-1" id="crontabCurlCode">0 1 25 * * curl -s -X POST -H "X-Webhook-Secret: <?= e($cronWebhookSecret) ?>" -H "Content-Type: application/json" -d '{"action":"auto"}' <?= e($webhookUrl) ?> &gt; /dev/null 2&gt;&amp;1</pre>
-                    <button class="btn btn-sm btn-secondary position-absolute top-0 end-0 m-1.5 py-0 px-2" onclick="copyText('crontabCurlCode', this)">Salin</button>
+                <!-- Tahap 1: Pembuatan & Kalkulasi Awal -->
+                <div class="p-2.5 rounded-3 border bg-white mb-3">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="badge bg-primary text-white">Tahap 1: Inisialisasi &amp; Sinkronisasi Otomatis</span>
+                    <span class="badge bg-light text-muted border">Disarankan: Tanggal 25 jam 01:00</span>
                   </div>
-                  <small class="text-muted">Dijalankan tiap tanggal 25 jam 01:00 dini hari secara otomatis.</small>
+                  <small class="text-muted d-block mb-1.5">Membuat periode bulan berjalan (jika belum ada), menyinkronkan karyawan/aturan master, dan menghitung total THP awal.</small>
+                  
+                  <label class="small text-muted font-weight-bold mb-0">Opsi A (aaPanel - Tipe Tugas: URL / Access URL):</label>
+                  <div class="position-relative mb-2">
+                    <input type="text" class="form-control form-control-sm font-monospace bg-light" id="cronAutoUrl" value="<?= e($webhookUrl) ?>?action=auto&amp;secret=<?= e($cronWebhookSecret) ?>" readonly>
+                    <button class="btn btn-xs btn-outline-primary position-absolute top-50 end-0 translate-middle-y me-1.5 py-0 px-2" style="font-size: 0.75rem;" onclick="copyToClipboard('cronAutoUrl', this)">Salin URL</button>
+                  </div>
+
+                  <label class="small text-muted font-weight-bold mb-0">Opsi B (aaPanel - Tipe Tugas: Shell Script via cURL):</label>
+                  <div class="position-relative">
+                    <pre class="bg-dark text-light p-2 rounded-2 font-monospace small mb-0" id="crontabAutoCurl">0 1 25 * * curl -s -X POST -H "X-Webhook-Secret: <?= e($cronWebhookSecret) ?>" -H "Content-Type: application/json" -d '{"action":"auto"}' <?= e($webhookUrl) ?> &gt; /dev/null 2&gt;&amp;1</pre>
+                    <button class="btn btn-xs btn-secondary position-absolute top-0 end-0 m-1.5 py-0 px-2" style="font-size: 0.75rem;" onclick="copyText('crontabAutoCurl', this)">Salin</button>
+                  </div>
                 </div>
 
-                <div>
-                  <span class="badge bg-secondary text-white mb-1">Opsi 2: Eksekusi Langsung via CLI Server (Tanpa HTTP)</span>
-                  <div class="position-relative mt-1">
-                    <pre class="bg-dark text-light p-2.5 rounded-3 font-monospace small mb-1" id="crontabCliCode">0 1 25 * * /usr/bin/php <?= e(ROOT_PATH) ?>/bin/cron_payroll.php &gt;&gt; <?= e(STORAGE_PATH) ?>/cron.log 2&gt;&amp;1</pre>
-                    <button class="btn btn-sm btn-secondary position-absolute top-0 end-0 m-1.5 py-0 px-2" onclick="copyText('crontabCliCode', this)">Salin</button>
+                <!-- Tahap 2: Finalisasi & Kunci Payroll -->
+                <div class="p-2.5 rounded-3 border bg-white mb-2" style="border-left: 4px solid #198754 !important;">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="badge bg-success text-white">
+                      <i class="fa-solid fa-lock me-1"></i> Tahap 2: Finalisasi &amp; Kunci Payroll Otomatis
+                    </span>
+                    <span class="badge bg-light text-muted border">Disarankan: Tanggal 28 jam 23:00</span>
+                  </div>
+                  <small class="text-muted d-block mb-1.5">Mengkunci nominal payroll periode review secara permanen, otomatis menerbitkan slip gaji karyawan, dan mengirimkan notifikasi ketersediaan slip gaji.</small>
+
+                  <label class="small text-muted font-weight-bold mb-0">Opsi A (aaPanel - Tipe Tugas: URL / Access URL):</label>
+                  <div class="position-relative mb-2">
+                    <input type="text" class="form-control form-control-sm font-monospace bg-light" id="cronFinalizeUrl" value="<?= e($webhookUrl) ?>?action=finalize&amp;secret=<?= e($cronWebhookSecret) ?>" readonly>
+                    <button class="btn btn-xs btn-outline-success position-absolute top-50 end-0 translate-middle-y me-1.5 py-0 px-2" style="font-size: 0.75rem;" onclick="copyToClipboard('cronFinalizeUrl', this)">Salin URL</button>
+                  </div>
+
+                  <label class="small text-muted font-weight-bold mb-0">Opsi B (aaPanel - Tipe Tugas: Shell Script via cURL):</label>
+                  <div class="position-relative mb-2">
+                    <pre class="bg-dark text-light p-2 rounded-2 font-monospace small mb-0" id="crontabFinalizeCurl">0 23 28 * * curl -s -X POST -H "X-Webhook-Secret: <?= e($cronWebhookSecret) ?>" -H "Content-Type: application/json" -d '{"action":"finalize"}' <?= e($webhookUrl) ?> &gt; /dev/null 2&gt;&amp;1</pre>
+                    <button class="btn btn-xs btn-secondary position-absolute top-0 end-0 m-1.5 py-0 px-2" style="font-size: 0.75rem;" onclick="copyText('crontabFinalizeCurl', this)">Salin</button>
+                  </div>
+
+                  <label class="small text-muted font-weight-bold mb-0">Opsi C (aaPanel - Tipe Tugas: Shell Script via PHP CLI Server):</label>
+                  <div class="position-relative">
+                    <pre class="bg-dark text-light p-2 rounded-2 font-monospace small mb-0" id="crontabFinalizeCli">0 23 28 * * /usr/bin/php <?= e(ROOT_PATH) ?>/bin/cron_payroll.php --action=finalize &gt;&gt; <?= e(STORAGE_PATH) ?>/cron.log 2&gt;&amp;1</pre>
+                    <button class="btn btn-xs btn-secondary position-absolute top-0 end-0 m-1.5 py-0 px-2" style="font-size: 0.75rem;" onclick="copyText('crontabFinalizeCli', this)">Salin</button>
                   </div>
                 </div>
+
               </div>
             </div>
 
@@ -1605,6 +1646,7 @@ include ROOT_PATH . '/app/Views/layouts/navbar.php';
                       <label class="form-label small text-muted mb-1">Pilih Tindakan (Action):</label>
                       <select name="cron_action" class="form-select form-control form-control-sm">
                         <option value="auto">auto — Buat Periode (jika belum ada) + Sinkron Aturan + Kalkulasi (Direkomendasikan)</option>
+                        <option value="finalize">finalize — Finalisasi &amp; Kunci Payroll (Kunci permanen &amp; terbitkan slip gaji)</option>
                         <option value="sync_rules">sync_rules — Hanya Sinkronkan Karyawan &amp; Aturan Master</option>
                         <option value="recalculate">recalculate — Hanya Kalkulasi Ulang Total Gaji (THP)</option>
                       </select>

@@ -96,6 +96,43 @@ $stmtAudit = $db->prepare("SELECT COUNT(*) FROM audit_logs WHERE action = 'CRON_
 $stmtAudit->execute();
 assertCronTest("Audit log mencatat eksekusi cronjob", (int)$stmtAudit->fetchColumn() > 0);
 
+// Test 6: Finalize action (Dry Run)
+$finalizeDry = runPayrollCronWorkflow($db, [
+    'action' => 'finalize',
+    'month' => 10,
+    'year' => 2026,
+    'dry_run' => true,
+    'triggered_by' => 'Unit Test Finalize Dry'
+]);
+assertCronTest("Finalize Dry run sukses dan mengembalikan status 'final' di output", $finalizeDry['period']['status'] === 'final');
+$statusInDb = $db->query("SELECT status FROM payroll_periods WHERE name = 'Oktober 2026'")->fetchColumn();
+assertCronTest("Database tetap dalam status 'review' setelah Finalize Dry run (dirollback)", $statusInDb === 'review');
+
+// Test 7: Finalize action (Live Execution)
+$finalizeLive = runPayrollCronWorkflow($db, [
+    'action' => 'finalize',
+    'month' => 10,
+    'year' => 2026,
+    'dry_run' => false,
+    'triggered_by' => 'Unit Test Finalize Live'
+]);
+assertCronTest("Finalize Live eksekusi sukses", $finalizeLive['success'] === true);
+$statusLiveDb = $db->query("SELECT status FROM payroll_periods WHERE name = 'Oktober 2026'")->fetchColumn();
+assertCronTest("Status periode di database berubah permanen menjadi 'final'", $statusLiveDb === 'final');
+
+$payslipCount = (int)$db->query("SELECT COUNT(*) FROM payslips")->fetchColumn();
+assertCronTest("Slip gaji (payslips) berhasil diterbitkan secara otomatis", $payslipCount > 0);
+
+// Test 8: Finalize Idempotence (re-calling finalize on already final period)
+$finalizeRerun = runPayrollCronWorkflow($db, [
+    'action' => 'finalize',
+    'month' => 10,
+    'year' => 2026,
+    'dry_run' => false,
+    'triggered_by' => 'Unit Test Finalize Rerun'
+]);
+assertCronTest("Pemanggilan ulang finalize bersifat idempoten (sukses tanpa error)", $finalizeRerun['success'] === true);
+
 // Clean up
 @unlink($tempDbPath);
 
